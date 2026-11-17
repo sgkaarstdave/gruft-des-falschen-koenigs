@@ -12,6 +12,7 @@ function makeParty(){
   return {
     act:(idea,hero='Dave')=>apply(room,hero,{type:'act',idea}),
     move:next=>apply(room,'tablet',{type:'move',room:next}),
+    vote:(next,hero)=>apply(room,hero,{type:'route',room:next}),
     roll:(die,hero='Dave')=>apply(room,hero,{type:'roll',die}),
     view:(id='Dave')=>view(room,id,'TEST24',1)
   };
@@ -70,4 +71,44 @@ test('a matching noun does not substitute a different scripted action',()=>{
   party.roll(17);
   assert.match(party.view().me.clue,/Filz/);
   assert.equal(party.view().paths.length,0);
+});
+
+test('tablet props change only when a phone action changes the shared room',()=>{
+  const party=makeParty();
+  assert.deepEqual(party.view('tablet').scene,{name:'entry',stone:true,rope:true,chest:'locked',loot:false});
+
+  party.act('Truhe öffnen');
+  assert.match(party.view().me.ideaNote,/verschlossen/);
+  assert.equal(party.view().pending,null);
+  party.act('Ich breche die Truhe mit einem Riesenschwert auf');
+  assert.match(party.view().me.ideaNote,/nicht im Rucksack/);
+  assert.equal(party.view().pending,null);
+
+  party.act('Ich nehme den Stein mit');
+  assert.equal(party.view('tablet').scene.stone,false);
+  party.act('Ich werfe den Stein auf Nico');
+  party.roll(1);
+  assert.equal(party.view('tablet').scene.stone,true);
+
+  party.act('Ich knacke das Truhenschloss');
+  party.roll(20);
+  assert.equal(party.view('tablet').scene.chest,'open');
+  assert.equal(party.view('tablet').scene.loot,true);
+  party.act('Ich nehme den goldenen Nugget');
+  assert.equal(party.view('tablet').scene.loot,false);
+  assert.ok(party.view().me.gear.includes('Goldener Nugget'));
+});
+
+test('the tablet stays in place until a majority of phones choose the same unlocked path',()=>{
+  const party=makeParty();
+  assert.throws(()=>party.vote('wache','Dave'),/verschlossen/);
+  party.act('Ich trete die Tür auf');
+  party.roll(20);
+  party.vote('wache','Dave');
+  party.vote('pilze','Nico');
+  assert.equal(party.view('tablet').scene.name,'entry');
+  party.vote('wache','Melli');
+  assert.equal(party.view('tablet').scene,null);
+  assert.match(party.view('tablet').room.name,/Wachstube/);
+  assert.deepEqual(party.view('tablet').routeVotes,[]);
 });

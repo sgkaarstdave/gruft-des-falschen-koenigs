@@ -139,25 +139,68 @@ function reward(){
   return panel('Deine Belohnung','<p>Wähle einen Bonus oder behalte einen Gegenstand als Erbstück.</p><div class="controls">'+stats.map(x=>button('+1 '+x,'upgrade',x)).join('')+'</div>'+
     (p.gear.length?'<form id="reward" class="join-form"><div><label for="relic">Erbstück</label><select name="item" id="relic">'+p.gear.map(i=>'<option>'+esc(i)+'</option>').join('')+'</select></div><button>Behalten</button></form>':''));
 }
+function panorama(scene){
+  const props=[
+    scene.rope?'<span class="room-prop prop-rope" role="img" aria-label="Seil am Boden"></span>':'',
+    scene.stone?'<span class="room-prop prop-stone" role="img" aria-label="Stein am Boden"></span>':'',
+    '<span class="room-prop prop-chest '+(scene.chest==='open'?'prop-open':'')+'" role="img" aria-label="'+(scene.chest==='open'?'Offene Truhe':'Geschlossene Truhe')+'"><span></span></span>',
+    scene.loot?'<span class="room-prop prop-loot" role="img" aria-label="Goldener Nugget in der Truhe"></span>':''
+  ].join('');
+  return '<div class="scene"><div class="panorama" tabindex="0" aria-label="Raumansicht. Wischen oder die Pfeiltasten nutzen, um sich umzusehen."><div class="panorama-content"><img src="/entry.webp" alt="Steinerne Gruft mit Tor und Fackeln" draggable="false">'+props+'</div></div><p>Zum Umschauen wischen oder ziehen</p></div>';
+}
+function bindPanorama(previous){
+  const pane=app.querySelector('.panorama');
+  if(!pane) return;
+  pane.scrollLeft=previous??(pane.scrollWidth-pane.clientWidth)/2;
+  let drag=null;
+  pane.addEventListener('pointerdown',event=>{
+    if(event.pointerType!=='mouse' || event.button!==0) return;
+    drag={start:event.clientX,scroll:pane.scrollLeft};
+    pane.setPointerCapture(event.pointerId);
+  });
+  pane.addEventListener('pointermove',event=>{
+    if(drag) pane.scrollLeft=drag.scroll-(event.clientX-drag.start);
+  });
+  pane.addEventListener('lostpointercapture',()=>{drag=null;});
+  pane.addEventListener('keydown',event=>{
+    if(event.key!=='ArrowLeft' && event.key!=='ArrowRight') return;
+    event.preventDefault();
+    pane.scrollLeft+=event.key==='ArrowLeft'?-100:100;
+  });
+}
+function wayPanel(){
+  if(!state.paths.length || state.status!=='play') return '';
+  const canMove=state.host&&state.me;
+  const chooser=canMove?'move':'route';
+  const routes=state.paths.map(path=>{
+    const votes=(state.routeVotes??[]).filter(id=>id===path.id).length;
+    if(!state.me) return esc(path.name)+(votes?' · '+votes+'/'+state.players.length+' Stimmen':'');
+    return button(path.name+(votes?' · '+votes+'/'+state.players.length:''),chooser,path.id,state.vote===path.id?'active':'',!!state.pending);
+  });
+  return panel('Wohin?',state.me?'<div class="actions">'+routes.join('')+'</div>':list(routes)+(state.players.length?' <p>Stimmt auf euren Handys ab.</p>':''));
+}
 function game(){
   const room=state.room;
   const playing=state.status==='play';
   const can=playing&&state.me?.hp>0&&!state.me?.sleep&&!state.pending;
-  const ways=state.paths.length&&playing?panel('Wohin?',state.host?'<div class="actions">'+state.paths.map(path=>button(path.name,'move',path.id,'',!!state.pending)).join('')+'</div>':list(state.paths.map(path=>esc(path.name)))+'<p>Einigt euch am Tisch. Die Route wählt ihr auf dem Tablet.</p>'):'';
+  const ways=wayPanel();
   const actions=can?panel('Was versuchst du?','<div class="actions">'+room.options.map(a=>button(a.name,'act',a.id)).join('')+
     (room.enemy?button('Mit bloßen Händen angreifen','act','attack'):'')+button('Genauer hinsehen','look')+'</div><form id="idea" class="join-form"><div><label for="phrase">Eigene Idee</label><input name="idea" id="phrase" maxlength="180" placeholder="Ich hebe einen Stein auf …" required></div><button>Versuchen</button></form>'+(state.me.ideaNote?'<p class="idea-note" role="status">'+esc(state.me.ideaNote)+'</p>':'')):'';
   const setting='<section class="roomheader"><div class="eyebrow">'+(state.status==='won'?'Die Krone gehört euch':state.status==='lost'?'Die Gruft hat gewonnen':'Raum '+state.explored.length)+'</div><h1>'+esc(room.name)+'</h1><p>'+esc(state.status==='lost'?'Die Gruft bleibt verschlossen. Eure Sterbeurkunden liegen zur Abholung bereit.':room.story)+'</p>'+
     (room.enemy&&playing?'<div class="resources">'+pill(room.enemy.name+' · '+room.enemy.hp+' LP','enemy')+'</div>':'')+'</section>';
-  return setting+'<div class="columns"><div class="stack">'+rollPanel()+actions+ways+(state.status==='won'?reward():'')+
+  const tableScene=state.host&&playing&&state.scene?panorama(state.scene):'';
+  return setting+tableScene+'<div class="columns"><div class="stack">'+rollPanel()+actions+ways+(state.status==='won'?reward():'')+
     (playing?'':button('Zur Startseite','exit'))+panel('Was passiert ist',list(state.log.map(esc),'story-log'))+'</div><div class="stack">'+gear()+party()+
     panel('Entdeckte Räume',list(state.explored.map(r=>esc((r.here?'◆ ':'◇ ')+r.name))))+'</div></div>';
 }
 function render(){
   topStatus.textContent=state?'Raum '+state.code+(state.host?' · Spielleitung':''):'3–6 Spieler · 1 echter W20';
+  const panScroll=app.querySelector('.panorama')?.scrollLeft;
   const active=document.activeElement;
   const focusId=active?.id;
   const oldValue=focusId&&['INPUT','SELECT'].includes(active.tagName)?active.value:null;
   app.innerHTML=state?(state.status==='lobby'?lobby():game()):home();
+  bindPanorama(panScroll);
   if(focusId&&oldValue!==null){
     const next=document.getElementById(focusId);
     if(next){next.value=oldValue;next.focus({preventScroll:true});}
@@ -189,7 +232,7 @@ app.addEventListener('click',async event=>{
     return;
   }
   if(type==='exit'){state=null;history.replaceState({},'','/');render();return;}
-  const field={choose:'hero',move:'room',act:'action',use:'item',upgrade:'reward'}[type];
+  const field={choose:'hero',move:'room',route:'room',act:'action',use:'item',upgrade:'reward'}[type];
   return run(field?{type,[field]:value}:{type});
 });
 app.addEventListener('submit',event=>{

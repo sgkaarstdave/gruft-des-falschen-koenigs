@@ -1,5 +1,5 @@
 import { heroes, items, world, freeAction } from './world.mjs';
-import { improvisedItems, interpretIdea, looseObjects } from './improv.mjs';
+import { improvisedItems, interpretIdea, looseObjects, plain } from './improv.mjs';
 
 const fail = message => { throw new Error(message); };
 const addLog = (s, text) => {s.log.unshift(text); s.log = s.log.slice(0,16);};
@@ -20,6 +20,12 @@ const paths = s => {
   return [...(p.clear || s.room==='truhe' || s.room==='kapelle' ? room.paths : []),
     ...(p.secret ? [room.secret] : []), ...(p.back ? [p.back] : [])].filter((id,i,a)=>a.indexOf(id)===i);
 };
+
+function moveParty(s,id){
+  for(const ally of s.players){ally.clue=null;ally.ideaNote=null;}
+  s.votes={};
+  enter(s,id);
+}
 
 function enter(s,id){
   const first = !s.progress[id];
@@ -141,6 +147,25 @@ function resolveImprovisation(s,p,a,success){
   if(move.kind==='lure') progress(s).stunned=Math.max(1,progress(s).stunned);
 }
 
+function chestIdea(s,p,word){
+  if(s.room!=='tor') return null;
+  const line=plain(word);
+  if(!/\b(?:truhe|truhe[n]?|kiste|truhenschloss)\b/.test(line)) return null;
+  const board=progress(s);
+  if(board.chestOpen) return {message:board.chestLoot?'Die Truhe ist offen und leer.':'Die Truhe ist offen. Ein goldener Nugget liegt darin.'};
+  const force=/aufbrech|aufhebel|aufstemm|(?:brech|hebel|stemm).*\bauf\b/.test(line);
+  const pick=/knack|diedrich|dietrich|schloss.*los|los.*schloss/.test(line);
+  if(!force&&!pick) return {message:'Die Truhe ist verschlossen. Am Rand ist Platz für einen Hebel. Das Schloss sieht aus, als hätte es mal eine bessere Zeit gehabt.'};
+  const gearOptions=[['Riesenschwert',/riesenschwert/],['Klinge',/klinge|messer|dolch/],['Runenkreide',/runenkreide/]];
+  const mentioned=gearOptions.find(([,pattern])=>pattern.test(line))?.[0];
+  if(mentioned && !p.gear.includes(mentioned)) return {message:mentioned+' hast du nicht im Rucksack. Hier liegt es auch nicht herum.'};
+  if(/dietrich|diedrich/.test(line)) return {message:'Ein Dietrich ist in diesem Raum nicht zu sehen und du hast keinen dabei. Beschreib, womit du das Schloss bearbeiten willst.'};
+  const dc=(force?14:13)-(mentioned?2:0);
+  return {rule:{name:force?'Truhe aufbrechen':'Truhenschloss knacken',stat:force?0:1,dc,
+    downside:'Das Schloss klemmt weiter. Du stößt dir die Hand und verlierst 1 LP.',
+    result:'Die Truhe springt auf. Drinnen liegt ein goldener Nugget.',chest:true}};
+}
+
 function resolve(s,p,die,force=false){
   const q=s.pending;
   const a=q.rule;
@@ -157,6 +182,14 @@ function resolve(s,p,die,force=false){
   s.pending=null;
   addLog(s,nameOf(p)+' · '+a.name+' · '+(force?'Sonne greift ein':die+' + '+bonus+' gegen '+a.dc)+(success?' · gelungen':' · fehlgeschlagen'));
   p.boost=false;
+  if(a.chest){
+    if(success) progress(s).chestOpen=true;
+    else hit(s,p,1);
+    p.ideaNote=success?a.result:a.downside;
+    addLog(s,p.ideaNote);
+    rotate(s,p);
+    return;
+  }
   if(a.improv){
     resolveImprovisation(s,p,a,success);
     rotate(s,p);
@@ -219,11 +252,19 @@ export function apply(s,id,data){
   if(s.status!=='play') fail('Diese Runde ist gerade nicht spielbar.');
   if(type==='move' && host && !s.pending){
     if(!paths(s).includes(data.room)) fail('Dieser Gang ist gerade verschlossen.');
-    for(const ally of s.players){ally.clue=null;ally.ideaNote=null;}
-    enter(s,data.room);
+    moveParty(s,data.room);
     return;
   }
   if(!p?.hero) fail('Tritt der Gruppe mit einem Charakter bei.');
+  if(type==='route'){
+    if(s.pending) fail('Wartet erst auf den Würfelwurf.');
+    if(!paths(s).includes(data.room)) fail('Dieser Gang ist gerade verschlossen.');
+    s.votes ??= {};
+    s.votes[id]=data.room;
+    const votes=Object.values(s.votes).filter(room=>room===data.room).length;
+    if(votes>s.players.length/2) moveParty(s,data.room);
+    return;
+  }
   if(type==='help' && s.pending && s.pending.stage==='roll' && s.pending.id!==id && !s.pending.help && p.hp>0 && !p.sleep){
     const actor=playerFor(s,s.pending.id);
     s.pending.help=actor.boost?3:2;
@@ -294,8 +335,21 @@ export function apply(s,id,data){
     const word=cap(data.idea);
     let free;
     if(word){
-      free=interpretIdea({room:s.room,board:progress(s),player:p,players:s.players,enemy:activeEnemy(s)?current(s).enemy.name:null,idea:word});
       p.ideaNote=null;
+      const line=plain(word);
+      if(s.room==='tor' && /nugget/.test(line) && /nehm|such|hebe|hol|sammel|greif/.test(line) && !/werf|schleud|schiess/.test(line)){
+        const board=progress(s);
+        if(!board.chestOpen || board.chestLoot){
+          p.ideaNote='Hier liegt gerade kein Nugget zum Aufheben.';
+          return;
+        }
+        if(!give(p,'Goldener Nugget')) fail('Dein Rucksack ist voll.');
+        board.chestLoot=true;
+        p.ideaNote='Der goldene Nugget ist jetzt in deinem Rucksack.';
+        addLog(s,nameOf(p)+' nimmt den goldenen Nugget aus der Truhe.');
+        return;
+      }
+      free=chestIdea(s,p,word)??interpretIdea({room:s.room,board:progress(s),player:p,players:s.players,enemy:activeEnemy(s)?current(s).enemy.name:null,idea:word});
       if(free?.message){p.ideaNote=free.message;return;}
       if(free?.inspect){p.ideaNote=free.inspect;return;}
       if(free?.take){
@@ -335,5 +389,10 @@ export function view(s,id,code,version){
     room:room?{name:room.name,glyph:room.glyph,story:room.story, options,enemy:activeEnemy(s)?{name:room.enemy.name,hp:state.hp}:null}:null,
     explored:Object.keys(s.progress).map(key=>({name:world[key].name,here:key===s.room})),
     paths:room?paths(s).map(key=>({id:key,name:s.progress[key]?world[key].name:key===room.secret?'Versteckter Gang':({wache:'Gang mit Stimmen',pilze:'Treppe in den Keller',saal:'Gang mit gedämpftem Ticken',truhe:'Seitengang mit Scharniergeräuschen',thron:'Tor mit goldenem Wappen',ausgang:'Raus aus der Gruft'})[key]??'Weiter'})):[],
+    scene:s.room==='tor'?{name:'entry',stone:(state.objects??looseObjects(s.room)).includes('Stein'),
+      rope:(state.objects??looseObjects(s.room)).includes('Seil'),chest:state.chestOpen?'open':'locked',
+      loot:!!state.chestOpen&&!state.chestLoot}:null,
+    vote:s.votes?.[id]??null,
+    routeVotes:Object.values(s.votes??{}),
     log:s.log,pending};
 }

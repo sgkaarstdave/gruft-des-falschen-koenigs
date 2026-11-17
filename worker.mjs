@@ -1,5 +1,5 @@
 import {newRoom,apply,view} from './game.mjs';
-import {page,style,client,heroImage} from './assets.mjs';
+import {page,style,client,heroImage,entryImage} from './assets.mjs';
 
 const json=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -32,7 +32,7 @@ async function api(req,db){
   }
   if(req.method!=='POST') return json({error:'Unbekannte Anfrage.'},405);
   const data=await req.json();
-  if(data.expected!==undefined && data.expected!==row.version && ['move','roll','keep','help','act','use','give','skill','cancel','ghost','skip'].includes(data.type))
+  if(data.expected!==undefined && data.expected!==row.version && ['move','route','roll','keep','help','act','use','give','skill','cancel','ghost','skip'].includes(data.type))
     return json({error:'Am Tisch hat sich etwas geändert. Schau kurz auf den aktuellen Stand und versuch es erneut.'},409);
   try{apply(state,id,data);}catch(error){return json({error:error.message},400);}
   const write=await db.prepare('UPDATE rooms SET version=version+1,state=?,saved=unixepoch() WHERE code=? AND version=?')
@@ -51,7 +51,10 @@ export default {async fetch(req,env){
   }
   if(path==='/style.css') return response(style,'text/css; charset=utf-8');
   if(path==='/app.js') return response(client,'text/javascript; charset=utf-8');
-  if(path==='/hero.webp' && heroImage) return response(Uint8Array.from(atob(heroImage),c=>c.charCodeAt(0)),'image/webp');
+  if(path==='/hero.webp' || path==='/entry.webp'){
+    const asset=path==='/hero.webp'?heroImage:entryImage;
+    if(asset) return response(Uint8Array.from(atob(asset),c=>c.charCodeAt(0)),'image/webp');
+  }
   if(path==='/' || path==='/index.html') return response(page,'text/html; charset=utf-8');
   return new Response('Nicht gefunden',{status:404});
 }};
