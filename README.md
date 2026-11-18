@@ -1,25 +1,75 @@
-# Die Gruft des falschen Königs
+# Die Gruft des falschen Königs · Dungeon-Crawler
 
-## Direkt spielen – ohne Installation
+**[Direkt online spielen](https://gruft-des-falschen-koenigs.furrybeetle.chatgpt.site)**
 
-**[▶ Spiel auf Tablet oder Handy öffnen](https://gruft-des-falschen-koenigs.furrybeetle.chatgpt.site)**
+Tablet: Raum öffnen. Handys: QR-Code scannen, Namen eingeben, Klasse wählen. Danach startet ein Handy die Expedition. 2–6 Spieler; zum Ausprobieren gibt es einen Solo-Modus. Internet genügt, ein gemeinsames WLAN oder Rechner ist nicht nötig.
 
-1. Auf dem Tablet den Spiel-Link öffnen und „Auf dem Tablet öffnen“ wählen.
-2. Die Spieler scannen mit ihren Handys den QR-Code und geben ihren Namen ein.
-3. Auf einem Handy die Runde starten und eigene Aktionen in den Chat schreiben.
+Sprecht Wege am Tisch ab und stimmt auf den Handys per Knopfdruck ab. Ziel, laufende Abstimmung und die letzten Ereignisse stehen auf dem Tablet. Im Kampf könnt ihr Angriffe, Verteidigung und Aufhelfen direkt auswählen. Bei Günther kann ein Held ihn unters Fallgitter locken, damit ein zweiter die Winde zieht.
 
-Für 2–6 Spieler. Das Tablet zeigt die Kulisse, die Handys sind für die Aktionen. Ihr braucht eine Internetverbindung und bei riskanten Versuchen einen echten W20. Ein gemeinsames WLAN oder ein laufender Rechner ist nicht erforderlich.
+Beim Beitritt kann jeder einen eigenen Insider-Spruch hinterlegen. Wenn Fokus fehlt, lässt sich der Spruch einmal beim Erkunden ausspielen. Er erscheint auf dem Tablet und bringt der Figur einen Fokuspunkt zurück.
 
-Das neue Kapitel ist [hier im Quellcode](https://github.com/sgkaarstdave/gruft-des-falschen-koenigs/pull/1) beschrieben. Die Online-Version ist bereits veröffentlicht.
+## Die Kündigung des Königs
 
-## Älteren lokalen Quellstand starten
+Eine komplette Expedition mit 13 illustrierten Dungeon-Räumen, fünf möglichen Monsterbegegnungen, persönlichen Charakterblättern, Beute und einem Boss. Das Skelettamt wird von Günther von Klammer-zurück geleitet. Klaudia Kassensturz ist eine Truhe mit Bissvertrag. Im Thronsaal wartet Dieter, der Kündigungsteppich, mit König Horst dem Vorläufigen als unbezahltem Reiter.
 
-Der Hauptzweig enthält noch den vorherigen Prototyp. Für einen lokalen WLAN-Server benötigt er Node.js 24 oder neuer:
+Das Tablet zeigt immer den aktuellen Raum, die Erzählung, Gruppen-LP und im Kampf das Monster samt angekündigtem Angriff. Die Dinge in der Kulisse gehören zu den Spielregeln: Gong, Becken, Fallgitter, Flasche, Kettenwinden, Archivtruhe, Gästebuch, Buffetglocke und Kronleuchter können untersucht oder genutzt werden. Illustrationen zeigen die Ausgangsszene; Status und Erzählung dokumentieren Änderungen.
 
-1. `npm run build`
-2. `npm run dev`
-3. Auf dem Tablet die angezeigte WLAN-Adresse öffnen und einen Gruppenraum erstellen. Mit den Spielerhandys den QR-Code scannen.
+Auf jedem Handy gibt es fünf Tabs: **Chat, Held, Rucksack, Skills und Karte**. Weltaktionen bleiben frei formulierte Sätze. Beispielsweise „Ich untersuche die Winde“, „Ich greife Günther an“, „Ich verteidige mich“ oder „Ich helfe Melli auf“. Inventar und Skills sind zusätzlich direkt bedienbar. Bei unklaren Absichten fragt die lokale regelbasierte Spielleitung nach. Sie ist kein unbegrenzt improvisierendes Sprachmodell und benötigt keinen API-Schlüssel.
 
-Die Spielelogik speichert gemeinsame Runden auf dem Server. GitHub Pages allein kann diesen Server nicht ausführen.
+## Anleitung und freiwillige Hinweise
 
-`node --test` führt die Tests aus. `world.mjs` enthält Spoiler.
+„So spielt ihr · Regeln & Hinweise“ steht auf der Startseite und während der Expedition auf dem Handy bereit. Im Chat erklärt „Hilfe“ die Regeln. „Hinweis“ gibt einen sanften Tipp zur aktuellen Situation, ein weiterer Hinweis wird konkreter. Es gibt zwei Stufen; keine automatische Lösung, keinen Ressourcenverbrauch und keinen verbrauchten Kampfzug. Bereits gelöste Mechanismen und aktive Kämpfe werden berücksichtigt. Die Hinweise können auch in bestehenden Runden genutzt werden.
+
+## Verzweigter Höhlendungeon
+
+Die Weggabelung verbindet Vorratsgrotte, Pilzhöhle, Brücke und verriegeltes Skelettamt. Eine reparierbare Schmiede, eine Quelle, ein Speerkorridor, ein Geheimgang und das bewachte Ossuarium bieten zusätzliche Wege und Entscheidungen. Die Karte zeigt nur besuchte Räume und ihre angrenzenden Gänge. Verborgene Abkürzungen erscheinen erst nach ihrer Entdeckung.
+
+Zum Endgegner benötigt ihr Sonne, Mond und Grab: drei Siegel aus verschiedenen Begegnungen. Brösel der Ungewaschene lässt sich mit einem tatsächlich vorhandenen Nugget besänftigen; Erwin von Knochenfrist besteht auf seiner Hellebarde. Werkzeuge liegen sichtbar in den Räumen. Seil und Brett werden beim Brückenbau verbaut, ein Zahnrad repariert den Blasebalg. Werkzeuge lassen sich zwischen Spielern weitergeben. Behälter, Schmiede-Upgrades und Quellen vergeben ihren Nutzen nur einmal. Eine riskante Alternative kündigt Zielwert und Schaden vor dem virtuellen Wurf an.
+
+**Freitext:** „Angriff“, „Attacke“, „ich greife an“, „hau drauf“ und häufige Tippfehler werden als dieselbe Absicht erkannt. Untersuchen, Nehmen, Öffnen, Verteidigen und Bewegung haben eigene Synonyme. Nach „Truhe öffnen“ kann die Spielleitung zwischen zwei Truhen nachfragen; „die eiserne“ beantwortet diese Rückfrage. Verneinungen und hypothetische Fragen führen keine Handlung aus. Diese Erkennung bleibt regelbasiert: Sie interpretiert viele Formulierungen, improvisiert aber keine beliebigen neuen Spielregeln.
+
+## Charaktere und Entwicklung
+
+Sechs Klassen mit unterschiedlichen LP, Attributen, Waffen und Skills:
+
+- **Thekenritter:** Gruppenschutz und kräftige Waffenangriffe.
+- **Schlachtkoch:** Heilung und das Pfannenfinale.
+- **Tintenbändigerin:** riskanter Furzwolken-Schlag und späteres Monsterzähmen.
+- **Nuggetmönch:** Monsterangriff unterbrechen und starke Heilung.
+- **Sonnenpakt-Hexe:** magische Angriffe mit einem gefährlichen stärkeren Skill.
+- **Pfandflaschen-Schurke:** Geschickangriffe und Rauchschutz.
+
+Erfahrung gibt es für abgeschlossene Begegnungen, auch für eine friedliche Lösung der Mimic-Begegnung. Stufen 2–4 liegen bei 4/8/14 EP. Jeder Aufstieg bringt +3 maximale LP, +1 Hauptattribut und einen frei verteilbaren Talentpunkt. Auf Stufe 2 wird der zweite Klassenskill frei. Talente, Ausrüstung und Begleiter bleiben während der Expedition erhalten; nach dem Ende könnt ihr die Charakterblätter weiter ansehen. Ein neuer Raum startet neue Helden, keine permanente Account-Kampagne.
+
+Beute liegt zunächst im Raum. Der erste erfolgreiche Aufnehmer bekommt sie in seinen persönlichen Rucksack. Waffen und Rüstung können zwischen Kämpfen gewechselt, nicht ausgerüstete Gegenstände an Freunde weitergegeben werden. Questgegenstände werden gemeinsam geführt. Gold ist in der Kapelle nach der Rast gegen Vorräte eintauschbar.
+
+## Virtueller Würfel und faire Risiken
+
+Der Server würfelt den W20 mit `crypto.getRandomValues` und Rejection Sampling. Ein vom Handy mitgesendeter Würfelwert wird ignoriert. Bei einer natürlichen 1 misslingt der Versuch immer; eine 20 gelingt kritisch und verursacht bei Angriffen +3 Schaden.
+
+Vor einem riskanten Einsatz zeigt der Würfelplan Attributbonus, Zielwert, genaue Erfolgschance, Fokuskosten, Erfolg und Fehlschlag. Bis zum Wurf kann der aktive Spieler kostenlos abbrechen. Nach dem Wurf werden Fokus, Schaden und Zug verbindlich gespeichert; kein erneuter Wurf derselben Aktion.
+
+**Furzwolken-Schlag:** 2 Fokus, W20 + Magie gegen 17, 10 Basisschaden plus Stufen-/Talentbonus. Bei Magie 3 sind das 35 % Erfolg. Fehlschlag: alle zuvor stehenden Helden verlieren 3 LP, bei natürlicher 1 sind es 5 LP. Eigene Rüstung schützt nicht vor dieser Wolke. Das kann eine Gruppe besiegen. Der stärkere Hexen-Skill hat entsprechend andere Werte, die ebenfalls vor dem Wurf angezeigt werden.
+
+## Kämpfe
+
+Das Monster kündigt vor jeder Runde Ziele und Basisschaden an. Jeder stehende Held handelt in fester Zugfolge einmal; erst dann erfolgt genau der angekündigte Monsterangriff. Untersuchungen kosten keinen Zug. Mehr Spieler erhöhen Monster-LP und die Anzahl angekündigter Ziele.
+
+- **Verteidigen:** 4 persönlicher Schutz und +1 Fokus.
+- **Thekenritter-Schutz:** 3 Schutz für alle beim nächsten Monsterangriff.
+- **Nuggetmönch:** ein Monsterangriff fällt aus, einmal pro Kampf.
+- **Raumvorteil:** eine gelungene Aktion an der Einrichtung verursacht Schaden und schwächt den nächsten Monsterangriff; einmal erfolgreich pro Begegnung.
+- **Heilen/Aufhelfen:** kostet im Kampf den Zug, kann bewusstlose Freunde zurückholen.
+- **Rückzug:** Mehrheit der stehenden Helden, nur in einen besuchten Raum, 2 LP Schaden je stehender Figur. Das Monster behält seine LP.
+
+Heilmittel und Fokus sind begrenzt. In der Kapelle gibt es nach Einladung und Buffetglocke **genau eine volle Rast**. Es gibt kein automatisches Vollheilen nach jedem Kampf. Liegt die ganze Gruppe am Boden, ist die Expedition verloren.
+
+## Testen und lokal starten
+
+Online ist kein Setup nötig. Für die optionale lokale Version: Node.js 24+ und `npm start` oder `STARTEN.bat`; zum Spielen ist kein `npm install` erforderlich. Spielstände liegen lokal in `gruft.sqlite`, online in der bestehenden D1-Datenbank.
+
+- `npm test`: aktuelle Crawler-Regeln und archivierte Vorgängerversionen.
+- `npm run build`: Worker mit allen Kulissen und dem Client erzeugen.
+- `npm install`, `npx playwright install chromium`, `npm run test:browser`: optionaler Browser-Test für Tablet, zwei getrennte Handy-Sitzungen, Klassenwahl, persönliche Tabs, Skill-Vorschau und echten virtuellen Würfel. Dieser Test hängt nicht von einem bestimmten Würfelergebnis ab.
+
+`crawler.mjs`, `dungeon.mjs` und `language.mjs` enthalten die aktuelle Spielwelt, Regeln und Absichtserkennung. `crawler-v2.mjs` archiviert den früheren linearen Crawler. `chapter.mjs`, `game.mjs`, `world.mjs` und `improv.mjs` bewahren die früheren Versionen samt Tests. Alte Online-Runden werden erkannt und nicht überschrieben; für den Crawler muss eine neue Runde erstellt werden. **Die Weltdateien enthalten Spoiler.**

@@ -1,257 +1,527 @@
-const app=document.querySelector('#app');
-const toast=document.querySelector('#message');
-const topStatus=document.querySelector('#status');
-const read=(key,fallback='')=>{try{return localStorage.getItem(key)??fallback;}catch{return fallback;}};
-const write=(key,value)=>{try{localStorage.setItem(key,value);}catch{}};
-const key=read('gruft.key') || Array.from(crypto.getRandomValues(new Uint8Array(24)),b=>b.toString(16).padStart(2,'0')).join('');
-write('gruft.key',key);
-const params=new URLSearchParams(location.search);
-const invite=params.get('join')?.toUpperCase();
-let state=null;
-let sending=false;
-let toastTimer;
-const stats=['Kraft','Geschick','Magie'];
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const attr=esc;
-const button=(text,type,value='',cls='',disabled=false)=>'<button type="button" class="'+cls+'" data-type="'+attr(type)+'" data-value="'+attr(value)+'" '+(disabled?'disabled':'')+'>'+esc(text)+'</button>';
-const panel=(label,content,cls='')=>'<section class="card '+cls+'"><h2>'+esc(label)+'</h2>'+content+'</section>';
-const list=(data,cls='')=>'<ul class="list '+cls+'">'+data.map(x=>'<li>'+x+'</li>').join('')+'</ul>';
-const pill=(label,cls='')=>'<span class="pill '+cls+'">'+esc(label)+'</span>';
-const shareUrl=()=>location.origin+'/?join='+state.code;
-let lastQr={url:'',markup:''};
-function inviteQr(){
-  const url=shareUrl();
-  if(lastQr.url===url) return lastQr.markup;
-  const QR=qrLoader('./index');
-  const qr=new QR(-1,qrLoader('./QRErrorCorrectLevel').M);
-  qr.addData(url);
-  qr.make();
-  const n=qr.getModuleCount();
-  let path='';
-  for(let y=0;y<n;y++) for(let x=0;x<n;x++) if(qr.isDark(y,x)) path+='M'+(x+4)+' '+(y+4)+'h1v1h-1z';
-  const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+(n+8)+' '+(n+8)+'"><rect width="100%" height="100%" fill="white"/><path d="'+path+'"/></svg>';
-  const markup='<a href="'+attr(url)+'" target="_blank" rel="noopener"><img class="qr" alt="QR-Code für den Gruppenraum" src="data:image/svg+xml,'+encodeURIComponent(svg)+'"></a>';
-  lastQr={url,markup};
-  return markup;
+const app = document.querySelector("#app"),
+  toast = document.querySelector("#message"),
+  status = document.querySelector("#status");
+const read = (k) => {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
+};
+const save = (k, v) => {
+  try {
+    localStorage.setItem(k, v);
+  } catch {}
+};
+const key =
+  read("gruft.key") ||
+  Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+save("gruft.key", key);
+const esc = (v) =>
+  String(v ?? "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
+  );
+const params = new URLSearchParams(location.search);
+let state = null,
+  busy = false,
+  draft = "",
+  errorTimer,
+  connection = "";
+const btn = (text, type, disabled = false) =>
+  `<button type="button" data-type="${type}" ${disabled ? "disabled" : ""}>${text}</button>`;
+function error(text) {
+  toast.textContent = text;
+  toast.hidden = false;
+  clearTimeout(errorTimer);
+  errorTimer = setTimeout(() => (toast.hidden = true), 6500);
 }
-function say(message){
-  clearTimeout(toastTimer);
-  toast.textContent=message;
-  toast.hidden=false;
-  toastTimer=setTimeout(()=>toast.hidden=true,5000);
-}
-async function ask(code,body){
-  const req=await fetch('/api/room'+(code?'/'+encodeURIComponent(code):''),{
-    method:body?'POST':'GET',
-    headers:{'X-Gruft-Key':key,...(body?{'Content-Type':'application/json'}:{})},
-    body:body?JSON.stringify(body):undefined
-  });
-  if(!req.headers.get('content-type')?.includes('application/json')) throw new Error('Der Server antwortet gerade nicht mit Spielstand.');
-  const data=await req.json();
-  if(!req.ok) throw new Error(data.error??'Die Gruft antwortet gerade nicht.');
+async function api(code, body) {
+  const res = await fetch(
+    "/api/room" + (code ? "/" + encodeURIComponent(code) : ""),
+    {
+      method: body ? "POST" : "GET",
+      headers: {
+        "X-Gruft-Key": key,
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    },
+  );
+  const data = await res.json();
+  if (!res.ok) throw Object.assign(Error(data.error || "Verbindung fehlgeschlagen."), { status: res.status });
   return data;
 }
-function update(next,force=false){
-  if(!force && state?.code===next.code && state.version>=next.version) return;
-  if(!force && ['INPUT','SELECT'].includes(document.activeElement?.tagName)) return;
-  state=next;
-  render();
-}
-async function run(body){
-  if(sending) return;
-  sending=true;
+async function action(body, code = state?.code) {
+  if (busy) return;
+  busy = true;
   try {
-    const next=await ask(state?.code??null,{...body,expected:state?.version});
-    update(next,true);
-  } catch(error){say(error.message);}
-  finally{sending=false;}
+    if (
+      [
+        "act",
+        "use",
+        "skill",
+        "loot",
+        "talent",
+        "give",
+        "buy",
+        "attack",
+        "defend",
+      ].includes(body.type) &&
+      state?.code === code
+    ) {
+      const latest = await api(code);
+      if (latest.room.id !== state.room.id || latest.pending) {
+        state = latest;
+        render();
+        throw Error(
+          "Die Szene hat sich geändert. Prüfe deine Idee und sende sie erneut.",
+        );
+      }
+      state = latest;
+    }
+    const request = {
+      ...body,
+      expected: state?.code === code ? state.version : undefined,
+    };
+    try {
+      state = await api(code, request);
+    } catch (err) {
+      if (body.type !== "route" || err.status !== 409) throw err;
+      const latest = await api(code);
+      if (latest.room.id !== body.room) {
+        state = latest;
+      } else if (Boolean(latest.combat) !== Boolean(state.combat)) {
+        throw err;
+      } else {
+        state = await api(code, { ...request, expected: latest.version });
+      }
+    }
+    connection = "";
+    save("gruft.room", state.code);
+    history.replaceState({}, "", "/?room=" + state.code);
+    if (body.type === "act") draft = "";
+    render();
+  } catch (e) {
+    error(e.message);
+    if (state) {
+      try {
+        state = await api(state.code);
+        render();
+      } catch {}
+    }
+  } finally {
+    busy = false;
+  }
 }
-async function create(solo){
-  if(sending) return;
-  sending=true;
-  try{
-    let next=await ask(null,{solo});
-    if(solo) next=await ask(next.code,{type:'join'});
-    write('gruft.room',next.code);
-    history.replaceState({},'','/?room='+next.code);
-    update(next,true);
-  }catch(error){say(error.message);}
-  finally{sending=false;}
+const share = () => location.origin + "/?join=" + state.code;
+function qr() {
+  const q = new (qrLoader("./index"))(-1, qrLoader("./QRErrorCorrectLevel").M);
+  q.addData(share());
+  q.make();
+  let d = "";
+  const n = q.getModuleCount();
+  for (let y = 0; y < n; y++)
+    for (let x = 0; x < n; x++)
+      if (q.isDark(y, x)) d += `M${x + 4} ${y + 4}h1v1h-1z`;
+  return `<img class="qr" alt="QR-Code zum Beitreten" src="data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n + 8} ${n + 8}"><rect width="100%" height="100%" fill="white"/><path d="${d}"/></svg>`)}">`;
 }
-async function join(code,alias){
-  if(sending) return;
-  sending=true;
-  try{
-    const next=await ask(code,{type:'join',alias});
-    write('gruft.room',code);
-    history.replaceState({},'','/?room='+code);
-    update(next,true);
-  }catch(error){say(error.message);}
-  finally{sending=false;}
+let tab = "chat",
+  targetId = "",
+  rolling = false;
+const button = (text, type, value = "", disabled = false, cls = "") =>
+  `<button type="button" class="${cls}" data-type="${type}" data-value="${esc(value)}" ${disabled ? "disabled" : ""}>${esc(text)}</button>`;
+const bar = (n, max, cls = "") =>
+  `<progress class="${cls}" max="${max}" value="${n}">${n}/${max}</progress>`;
+const chip = (t) => `<span class="chip">${esc(t)}</span>`;
+function playGuide(){return `<details class="play-guide"><summary>So spielt ihr · Regeln & Hinweise</summary><div><p><strong>Start:</strong> Tablet: Raum öffnen. Handys: QR-Code scannen, Namen und Klasse wählen. Ein Handy startet die Runde. Allein geht es über „Allein ausprobieren“; die Regeln bleiben gleich.</p><p><strong>Erkunden:</strong> Schau dir die Kulisse an und beschreibe im Chat, was du tun willst: etwa „Ich untersuche die Truhe“. Du brauchst keine exakten Befehle. Untersuchen kostet keinen Zug. Freie Gegenstände musst du aufnehmen, damit du sie im Rucksack hast.</p><p><strong>Dein Held:</strong> Unter Held findest du Werte und Talentpunkte, unter Rucksack Beute und Ausrüstung, unter Skills deine Fähigkeiten. Die Karte wächst beim Erkunden.</p><p><strong>Gemeinsam gehen:</strong> Sprecht euch am Tisch ab und tippt auf euer Ziel. Die Mehrheit der stehenden Helden entscheidet. Solo genügt deine Stimme.</p><p><strong>Kampf & Würfel:</strong> Ihr handelt reihum. Lies vorher den angekündigten Monsterangriff. Riskante Aktionen zeigen Chance, Kosten und Folgen. Erst „Jetzt würfeln“ führt den Versuch aus; vorher ist Abbrechen kostenlos. Verteidigen gibt Schutz und Fokus. Heilen und Aufhelfen kosten im Kampf einen Zug.</p><p><strong>Vorräte:</strong> Heilung und Fokus sind begrenzt. Es gibt kein automatisches Vollheilen nach jedem Kampf. Liegt die ganze Gruppe am Boden, endet die Expedition.</p><p><strong>Festgefahren?</strong> Schreib „Hinweis“ für einen sanften Tipp zum aktuellen Raum. „Noch ein Hinweis“ wird konkreter. Hinweise sind freiwillig, kosten keinen Zug und führen keine Aktion aus. „Hilfe“ erklärt die Regeln im Chat.</p><p><strong>Speichern:</strong> Eure Runde wird automatisch gespeichert. Mit demselben Browser und Gerät kannst du über „Letzte Runde fortsetzen“ zurückkehren.</p></div></details>`;}
+function home() {
+  return `<section class="landing"><div class="eyebrow">Dungeon-Crawler · 2–6 Freunde · online</div><h1>Die Gruft des<br><em>falschen Königs.</em></h1><p>Wählt eure Klasse. Plündert die Gruft.<br>Überlebt Günthers Bürokratie und eure eigenen Skills.</p><div class="controls">${button("Auf dem Tablet öffnen", "create")}${button("Allein ausprobieren", "solo", "", "", "secondary")}</div><div class="landing-tags">${chip("13 Räume & Geheimgänge")}${chip("6 Klassen")}${chip("Monster & Beute")}${chip("Virtueller W20")}${chip("Charakterentwicklung")}</div>${playGuide()}</section><div class="lobby-grid"><section class="card"><h2>Mit dem Handy beitreten</h2>${joinForm(params.get("join") || "")}</section><section class="card"><h2>Ein Raum. Eure Truppe.</h2><p>Das Tablet zeigt den Dungeon. Auf dem Handy findest du deinen Helden, Rucksack, Skills, die wachsende Karte und den gemeinsamen Chat.</p><p>Riskante Aktionen zeigen vor dem virtuellen Wurf ihre Erfolgschance und Folgen. Ihr entscheidet, ob ihr das riskiert.</p>${read("gruft.room") ? button("Letzte Runde fortsetzen", "resume", "", "", "secondary") : ""}</section></div>`;
+}
+function joinForm(code) {
+  return `<form id="join"><label for="code">Raumcode</label><input id="code" name="code" value="${esc(code)}" maxlength="6" required placeholder="ABC234" autocapitalize="characters"><label for="alias">Dein Heldenname</label><input id="alias" name="alias" maxlength="24" required autocomplete="nickname" placeholder="Dave von der traurigen Panade"><label for="catchphrase">Dein typischer Spruch (optional)</label><input id="catchphrase" name="catchphrase" maxlength="80" placeholder="Das wird man am Tisch wiedererkennen"><button>Beitreten</button></form>`;
+}
+function partyCards() {
+  return `<div class="party-cards">${state.players
+    .map((p) => {
+      const c = state.classes[p.classId];
+      return `<div class="party-mini ${p.down ? "down" : ""}"><div><strong>${esc(p.alias)}</strong><small>${c ? esc(c.name) + " · Stufe " + p.level : "Wählt eine Klasse …"}</small></div>${c ? `<div class="mini-hp">${p.hp}/${p.maxHp} LP${bar(p.hp, p.maxHp)}</div>` : ""}</div>`;
+    })
+    .join("")}</div>`;
+}
+function lobby() {
+  const ready =
+    state.players.length >= (state.solo ? 1 : 2) &&
+    state.players.every((p) => p.classId);
+  return `<div class="eyebrow">Expedition I · Die Kündigung des Königs</div><h1>Wer steigt hinab?</h1><div class="lobby-grid"><section class="card">${
+    state.me
+      ? `<h2>${esc(state.me.alias)}, wähle deine Klasse</h2><p>Jeder Held hat eigene Attribute, Ausrüstung und zwei Skills. Der zweite Skill wird auf Stufe 2 frei.</p><div class="class-grid">${Object.entries(
+          state.classes,
+        )
+          .map(
+            ([id, c]) =>
+              `<button class="class-card ${state.me.classId === id ? "selected" : ""}" data-type="choose" data-value="${id}"><span class="class-sigil">${c.glyph}</span><strong>${esc(c.name)}</strong><small>${esc(c.title)}</small><p>${esc(c.about)}</p><div>${c.hp} LP · ${c.stats.map((n, i) => ["K", "G", "M"][i] + " " + n).join(" · ")}</div></button>`,
+          )
+          .join("")}</div>`
+      : `<h2>Das Tablet ist eure Bühne</h2><div class="code">${esc(state.code)}</div>${qr()}<p>Handys scannen den QR-Code und wählen ihren Helden. Danach startet ihr auf einem Handy.</p><input aria-label="Einladungslink" readonly value="${esc(share())}">${button("Link kopieren", "copy", "", "", "secondary")}`
+  }</section><section class="card"><h2>Eure Truppe · ${state.players.length}/6</h2>${partyCards()}<p>Monsterstärke wächst mit der Gruppengröße. Raumwechsel entscheidet die Mehrheit. Im Kampf handelt ihr reihum, Untersuchungen sind kostenlos.</p>${state.me ? button("In die Gruft!", "start", "", !ready) : "<p>Warte auf den Aufbruch der Spieler.</p>"}</section></div>`;
+}
+function monsterPanel(table = false) {
+  const c = state.combat;
+  if (!c) return "";
+  return `<section class="monster-panel"><div class="monster-title"><div><span class="eyebrow">Runde ${c.round} · ${esc(c.turn)} am Zug</span><h2>${esc(c.enemy.name)}</h2><small>${esc(c.enemy.title)}</small></div><b>${c.enemy.hp}/${c.enemy.maxHp}<small>LP</small></b></div>${bar(c.enemy.hp, c.enemy.maxHp, "enemy-progress")}<div class="intent"><strong>${c.stun ? "Angriff unterbrochen" : esc(c.intent.name)}</strong><span>→ ${esc(c.intent.targets.join(", "))} · ${c.intent.damage} Basisschaden</span><small>Nach euren Zügen. Rüstung, Verteidigung und Gruppenschutz werden abgezogen.${c.shield ? " Gruppenschutz: " + c.shield + "." : ""}</small></div></section>`;
+}
+function diceResult() {
+  const r = state.lastRoll;
+  if (!r) return "";
+  return `<div class="roll-result ${r.success ? "success" : "failure"}"><span class="die-face">${r.die}</span><div><strong>${esc(r.actor)} · ${esc(r.name)}</strong><div>W20 ${r.die} + ${r.bonus} = ${r.total} / Ziel ${r.dc} · ${r.success ? "Erfolg" : "Fehlschlag"}</div></div></div>`;
+}
+function dungeonPlan(compact=false){
+ const m=state.map;if(!m)return '';
+ const point=id=>m.nodes.find(n=>n.id===id);
+ const x=n=>45+n.x*80,y=n=>40+n.y*70;
+ return `<section class="dungeon-plan ${compact?'compact-map':''}"><h2>Dungeonkarte · ${m.visited}/${m.total}</h2><p class="map-seals">${state.objectives.map(o=>`${o.done?'●':'○'} ${esc(o.name)}`).join(' · ')}</p><svg viewBox="0 0 670 290" role="img" aria-label="Entdeckte Räume und verbundene Gänge. Der aktuelle Raum ist gold markiert.">${m.edges.map(e=>{const a=point(e.from),b=point(e.to);return `<line x1="${x(a)}" y1="${y(a)}" x2="${x(b)}" y2="${y(b)}" class="${e.locked?'locked-path':'open-path'}"/>`;}).join('')}${m.nodes.map(n=>`<g class="map-node ${n.current?'current':n.visited?'visited':'unknown'}"><circle cx="${x(n)}" cy="${y(n)}" r="15"/><text x="${x(n)}" y="${y(n)+5}">${n.current?'◆':n.visited?(n.clear?'✓':'!'):'?'}</text><text class="map-label" x="${x(n)}" y="${y(n)+31}">${esc(n.visited?n.id:'?')}</text></g>`).join('')}</svg><p>◆ Hier seid ihr · ? unerforscht · gestrichelt: gesperrt</p>${compact?'':`<ol class="map-rooms">${m.nodes.filter(n=>n.visited).map(n=>`<li>${esc(n.name)}${n.current?' · aktueller Raum':''}</li>`).join('')}</ol><h3>Wege aus diesem Raum</h3>${state.room.paths.map(p=>`<p><strong>${esc(p.name)}</strong>${p.locked?`<br>${esc(p.locked)}`:' · zugänglich'}</p>`).join('')}<p>Stimmt im Chat-Tab per Knopfdruck für euren nächsten Raum.</p>`}</section>`;
+}
+function tablet(){return `<div class="table-main"><section class="stage"><img class="room-art" src="/art/${esc(state.room.image)}.webp" alt="${esc(state.room.name)} mit ${esc(state.room.objects.join(', '))}"><div class="stage-heading"><span class="eyebrow">Die Kündigung des Königs · Raum ${state.map?.visited??state.explored.length}/${state.map?.total??13}</span><h1>${esc(state.room.name)}</h1></div></section><aside class="table-sidebar">${monsterPanel(true)}${diceResult()}${dungeonPlan(true)}<div class="table-party">${partyCards()}</div></aside></div>${tableStory()}<footer class="table-footer">${state.status==='won'?'Krone geborgen!':state.status==='lost'?'Expedition gescheitert.':'Handys sind am Zug'} · Raum ${esc(state.code)} · Sichtbar: ${esc(state.room.objects.join(' · '))}</footer>`;}
+function routePanel(table = false) {
+  const votes = state.routeVotes ?? [];
+  if (table && !votes.length) return "";
+  const paths = state.room.paths.filter(path => !state.combat || path.visited);
+  const heading = state.combat ? "Rückzug · kostet 2 LP" : "Wohin gehen wir?";
+  if (!paths.length) return "";
+  return `<section class="table-actions"><strong>${heading}</strong>
+    <div class="action-buttons">${paths.filter(path => !table || votes.some(vote => vote.id === path.id)).map(path => {
+      const count = votes.find(vote => vote.id === path.id)?.count;
+      const label = path.name + (count ? ` · ${count}/${state.routeNeeded}` : "");
+      return table ? `<span>${esc(label)}</span>` : button(label, "route", path.id, Boolean(state.pending), "secondary");
+    }).join("")}</div></section>`;
 }
 
-function home(){
-  const recent=read('gruft.room');
-  return '<section class="cover"><div class="cover-inner"><div class="eyebrow">Kooperatives Würfelabenteuer</div><h1>Die Gruft des<br><em>falschen Königs.</em></h1><p>Ein Tablet für die Geschichte, ein Handy pro Held und ein echter W20 auf dem Tisch.</p><div class="controls">'+button('Gruppenraum öffnen','create','','primary')+button('Proberunde allein','solo')+'</div></div></section>'+
-    '<div class="columns">'+panel('Einer Gruppe beitreten','<form id="join" class="join-form"><div><label for="code">Raumcode</label><input id="code" name="code" maxlength="6" pattern="[A-Za-z2-9]{6}" placeholder="ABC234" value="'+attr(invite??'')+'" required></div><button class="primary">Beitreten</button></form>')+
-    panel('So spielt ihr','<p>Öffne den Raum auf dem Tablet. Die anderen öffnen den Einladungslink oder tippen den Raumcode ein. Auf dem Tablet könnt ihr selbst auch mitspielen.</p>'+(recent?button('Letzten Raum öffnen','resume',recent):''))+'</div>';
+function quickActions() {
+  if (state.status !== "play" || state.me.down) return "";
+  const combat = state.combat;
+  const active = !state.pending && (!combat || combat.mine);
+  const down = state.players.filter(player => player.down && !player.self);
+  const actions = [];
+  if (!combat && state.me.catchphraseReady)
+    actions.push(button("Insider ausspielen · +1 Fokus", "catchphrase", "", !active, "secondary"));
+  if (state.room.id === "tor" && !state.progress.gate) {
+    actions.push(button("Gong untersuchen", "scene", "Ich untersuche den Gong", !active, "secondary"));
+    actions.push(button("Steingesicht ansprechen", "scene", "Ich spreche mit dem Steingesicht", !active, "secondary"));
+  }
+  if (combat) {
+    actions.push(button("Angreifen", "attack", "", !active));
+    actions.push(button("Verteidigen", "defend", "", !active, "secondary"));
+  }
+  if (combat?.team?.canAct) {
+    actions.push(button(combat.team.lure ? "Winde ziehen" : "Günther ablenken", "team", "", !active, "secondary"));
+  }
+  for (const player of down) {
+    actions.push(button(`${player.alias} aufhelfen`, "help", player.id, !active, "secondary"));
+  }
+  return `${actions.length ? `<div class="action-buttons quick-actions">${actions.join("")}</div>` : ""}
+    ${!combat || state.routeVotes?.length ? routePanel() : `<details class="room-context"><summary>Rückzug beraten</summary>${routePanel()}</details>`}`;
 }
-function party(){
-  return panel('Eure Truppe',state.players.length?list(state.players.map(p=>'<span>'+esc(p.alias)+'</span><span>'+esc(p.ghost?'Geist':typeof p.hp==='number' && state.status!=='lobby'?p.hp+' / 8 LP':p.hero??'Wählt …')+'</span>')):'<p>Der Raum ist offen. Sobald jemand beitritt, erscheint er hier.</p>');
+
+function tableStory() {
+  const objective = state.status === "won" ? "Krone geborgen!" :
+    state.status === "lost" ? "Expedition gescheitert." :
+    state.progress.crown ? "Ziel · Bringt die Krone zum Ausgang" :
+    state.room.id === "tor" && !state.progress.gate ? "Ziel · Öffnet das Tor" :
+    state.objectives.every(seal => seal.done) ? "Ziel · Holt die Krone aus dem Thronsaal" :
+    "Ziel · Sammelt die drei Siegel für den Thronsaal";
+  return `<section class="table-story" aria-live="polite">
+    <strong>${objective}</strong>${routePanel(true)}
+    <div class="table-events">${(state.tableEvents ?? []).toReversed().map(event => `<p>${esc(event.text)}</p>`).join("")}</div>
+    ${state.pending ? `<div class="pending-line">${esc(state.pending.actor)} · ${esc(state.pending.name)} · ${state.pending.chance}% Erfolg
+      ${state.host ? `<details><summary>Wurf hängt?</summary>${button("Wurf abbrechen", "cancel", "", false, "secondary")}</details>` : ""}</div>` : ""}
+  </section>`;
 }
-function lobby(){
-  const occupied=new Set(state.players.filter(x=>!x.self).map(p=>p.hero));
-  const choose='<div class="roles">'+Object.entries(state.heroes).map(([name,h])=>'<button type="button" data-type="choose" data-value="'+attr(name)+'" class="role '+(state.me?.hero===name?'active':'')+'" '+(occupied.has(name)?'disabled':'')+'><span class="sigil" aria-hidden="true">'+esc(h.glyph)+'</span><strong>'+esc(name)+'</strong><span>'+esc(h.title)+'</span></button>').join('')+'</div>';
-  const selected=state.me?.hero?'<p>'+esc(state.heroes[state.me.hero].info)+'</p>':'';
-  const ready=state.players.length>=(state.solo?1:3)&&state.players.every(p=>p.hero);
-  return '<section class="roomheader"><div class="eyebrow">'+(state.solo?'Proberunde':'Treffpunkt')+'</div><h1>Vor dem Abstieg</h1><p>'+(!state.me?'Öffne diesen Raum auf dem Tablet und lass die Truppe beitreten.':'Wählt eure Rollen. Legt den W20 bereit.')+'</p></section>'+
-    '<div class="columns"><div class="stack">'+(state.me?panel('Wähle deine Figur',choose+selected):panel('Raum für deine Freunde','<p>Raumcode</p><div class="code">'+esc(state.code)+'</div>'+inviteQr()+'<label for="share">Einladungslink</label><input id="share" readonly value="'+attr(shareUrl())+'"><p class="line">'+button('Link kopieren','copy')+button('Auf diesem Gerät mitspielen','alsojoin')+'</p>'))+
-    (state.host?panel('Aufbruch','<p>'+(ready?'Die Gruppe ist bereit.':'Sobald '+(state.solo?'deine Rolle steht':'mindestens drei Spieler eine Rolle gewählt haben')+', kann die Gruppe los.')+'</p>'+button('Dungeon betreten','start','','primary',!ready)):'')+
-    '</div><div class="stack">'+party()+(state.me&&!state.solo?panel('Raumcode','<div class="code">'+esc(state.code)+'</div>'+inviteQr()+button('Einladungslink kopieren','copy')):'')+'</div></div>';
+
+function targetSelect() {
+  return `<label>Ziel<select name="target" aria-label="Ziel wählen">${state.players.map((p) => `<option value="${p.id}" ${targetId === p.id || (!targetId && p.self) ? "selected" : ""}>${esc(p.alias)}${p.self ? " (du)" : ""} · ${p.hp}/${p.maxHp} LP</option>`).join("")}</select></label>`;
 }
-function rollPanel(){
-  const q=state.pending;
-  if(!q) return '';
-  const sun=q.stage==='sun';
-  const text=sun?'Jenny kann den geretteten Erfolg nehmen. Nachlegen bringt ab 9 einen goldenen Nugget. Bei 1–8 kippt der Erfolg und die Sonne nimmt 2 LP.':q.downside;
-  const form='<form id="dice"><div><label for="die">Echter W20</label><input inputmode="numeric" type="number" name="die" id="die" min="1" max="20" required placeholder="1–20"></div><button class="primary">'+(sun?'Nachlegen':'Wurf eintragen')+'</button>'+(sun?button('Erfolg nehmen','keep'):button('Zurück','cancel'))+'</form>';
-  return panel(q.name,'<p>'+esc(q.actor)+(q.idea?' · „'+esc(q.idea)+'“':'')+'</p><div class="equation">'+(sun?'Noch einmal Sonne?':'W20 + '+esc(stats[q.stat])+' '+esc(q.bonus)+(q.help?' + '+esc(q.help)+' Hilfe':'')+' · Ziel '+esc(q.dc))+'</div><p>'+esc(text)+'</p>'+(q.mine?form:!sun&&state.me?.hp>0&&!q.help?button('Bei diesem Wurf helfen','help'):'<p>Wartet auf '+esc(q.actor)+'.</p>'),'roll');
+function hero() {
+  const p = state.me,
+    c = state.classes[p.classId];
+  const unlocked = [c.skill, c.advanced].map((k) => state.skills[k]);
+  return `<section class="hero-banner"><div class="hero-sigil">${c.glyph}</div><span class="eyebrow">Stufe ${p.level} · ${esc(c.name)}</span><h1>${esc(p.alias)}</h1><p>${esc(c.title)}</p><div class="resource-grid"><div><strong>${p.hp}/${p.maxHp}</strong><small>Lebenspunkte</small>${bar(p.hp, p.maxHp)}</div><div><strong>${p.focus}/${p.maxFocus}</strong><small>Fokus</small>${bar(p.focus, p.maxFocus, "focus-progress")}</div></div>${p.down ? '<p class="danger">Du liegst am Boden. Ein Freund kann dich heilen oder aufhelfen.</p>' : ""}</section><section class="card"><h2>Deine Attribute</h2><div class="stat-grid">${p.stats.map((n, i) => `<div><b>+${n}</b><small>${["Kraft", "Geschick", "Magie"][i]}</small></div>`).join("")}</div><p>${p.xp} EP ${p.nextXp ? "· nächste Stufe bei " + p.nextXp : "· Höchststufe dieser Expedition"} · ${p.gold} Gold</p>${p.nextXp ? bar(p.xp, p.nextXp, "focus-progress") : ""}<p>Waffe: <strong>${esc(p.weapon)}</strong><br>Rüstung: <strong>${esc(p.armor || "Keine")}</strong><br>Zusatzschaden: +${p.damageBonus}${p.pet ? " · Begleiter: +1 Schaden" : ""}</p></section>${
+    p.points
+      ? `<section class="card"><div class="eyebrow">${p.points} Talentpunkt${p.points !== 1 ? "e" : ""} verfügbar</div><h2>Entwickle deinen Helden</h2><p>Talente wählt ihr zwischen Kämpfen. Jeder Punkt wird dauerhaft für diese Runde eingesetzt.</p><div class="talent-grid">${[
+          ["kraft", "+1 Kraft"],
+          ["geschick", "+1 Geschick"],
+          ["magie", "+1 Magie"],
+          ["vital", "+4 maximale LP"],
+          ["schaden", "+1 Angriffsschaden"],
+        ]
+          .map(([id, t]) =>
+            button(
+              t,
+              "talent",
+              id,
+              Boolean(state.combat || state.pending),
+              "secondary",
+            ),
+          )
+          .join("")}</div></section>`
+      : ""
+  }<section class="card"><h2>Deine Entwicklung</h2><p>Stufe 2: zweiter Klassenskill. Jeder Aufstieg: +3 maximale LP, +1 Hauptattribut, ein Talentpunkt.</p><p>${p.talents.length ? "Gewählte Talente: " + esc(p.talents.join(", ")) : "Deine Geschichte beginnt gerade erst."}</p></section>`;
 }
-function gear(){
-  const me=state.me;
-  if(!me || !me.hero) return '';
-  const h=state.heroes[me.hero];
-  const pals=state.players.filter(p=>!p.self&&!p.ghost);
-  const target=(all=false)=> (all?'<option value="">Selbst</option>':'')+pals.map(p=>'<option value="'+attr(p.id)+'">'+esc(p.alias)+'</option>').join('');
-  const inventory=me.gear.map(item=>'<div class="item"><strong>'+esc(item)+'</strong><p>'+esc(state.items[item])+'</p>'+
-    (state.status==='play'&&me.hp>0&&!me.sleep&&!state.pending?(item.includes('Nugget')?'<form class="join-form" data-item="'+attr(item)+'" data-form="heal"><select name="target" aria-label="Wer isst das Nugget?">'+target(true)+'</select><button>Heilen</button></form>':(state.improvisedItems?.includes(item)?button('In einer Idee verwenden','ideaItem',item):button('Einsetzen','use',item)))+(pals.length?'<details><summary>Weitergeben</summary><form class="join-form" data-item="'+attr(item)+'" data-form="give"><select name="target" aria-label="Empfänger">'+target()+'</select><button>Geben</button></form></details>':''):'')+'</div>').join('');
-  const health=me.ghost?'Geist':me.hp+' / 8 LP';
-  return panel(me.hero+' · '+h.title,'<div class="resources">'+pill(health,'hp')+me.stats.map((x,i)=>pill(stats[i]+' '+x)).join('')+'</div>'+
-    (me.clue?'<p><strong>Dein Hinweis:</strong> '+esc(me.clue)+'</p>':'')+
-    (me.ghost?'<p>Du kannst mit deiner Gruppe sprechen und einmal pro Raum spuken.</p>'+button('Spuken','ghost','', '',!!state.pending):!me.skill?'<p><strong>'+esc(h.skill)+'</strong><br>'+esc(h.info)+'</p>'+button('Fähigkeit einsetzen','skill','','',!!state.pending||state.status!=='play'):'<p>Deine Spezialfähigkeit wurde eingesetzt.</p>')+
-    (me.sleep?button('Einmal aussetzen','skip','','',!!state.pending):'')+
-    '<h3>Rucksack</h3><div class="inventory">'+(inventory||'<p>Dein Rucksack ist leer.</p>')+'</div>','ability');
+function inventory() {
+  const p = state.me;
+  return `<section class="card"><span class="eyebrow">${p.gold} Gold · ${p.bag.length} Gegenstände</span><h2>Dein Rucksack</h2><p>Ausrüstung wechselt ihr zwischen Kämpfen. Heilmittel und Fokusbrause kosten im Kampf deinen Zug.</p>${[
+    ...new Set(p.bag),
+  ]
+    .map((item) => {
+      const it = state.items[item],
+        equipped = p.weapon === item || p.armor === item;
+      return `<article class="inventory-item"><div class="item-title"><strong>${esc(item)}</strong><span>×${p.bag.filter((x) => x === item).length}${equipped ? " · ausgerüstet" : ""}</span></div><p>${esc(it.desc)}</p>${["heal", "focus"].includes(it.kind) ? `<form data-use="${esc(item)}">${targetSelect()}<button ${state.pending || p.down || (state.combat && !state.combat.mine) ? "disabled" : ""}>Einsetzen</button></form>` : ["weapon", "armor"].includes(it.kind) ? button(equipped ? "Ausgerüstet" : "Ausrüsten", "equip", item, Boolean(equipped || state.combat || state.pending), "secondary") : ""}${it.kind === "armor" && equipped ? button("Rüstung ablegen", "unequip", "armor", Boolean(state.combat || state.pending), "secondary") : ""}${
+        !state.combat && !equipped && state.players.length > 1
+          ? `<details><summary>Weitergeben</summary><form data-give="${esc(item)}"><select name="target" aria-label="Empfänger">${state.players
+              .filter((a) => !a.self)
+              .map((a) => `<option value="${a.id}">${esc(a.alias)}</option>`)
+              .join("")}</select><button>Geben</button></form></details>`
+          : ""
+      }</article>`;
+    })
+    .join(
+      "",
+    )}</section><section class="card"><h2>Beute im Raum</h2>${state.loot.length ? state.loot.map((item) => `<article class="inventory-item"><strong>${esc(item)}</strong><p>${esc(state.items[item].desc)}</p>${button("Aufnehmen", "loot", item, Boolean(state.combat || state.pending), "secondary")}</article>`).join("") : "<p>Hier liegt gerade keine freie Beute.</p>"}</section>${
+    state.shop
+      ? `<section class="card"><h2>Buffet gegen Bares</h2><p>Die Braut verkauft Vorräte für den Bosskampf.</p>${Object.entries(
+          state.shop,
+        )
+          .map(([item, cost]) =>
+            button(
+              item + " · " + cost + " Gold",
+              "buy",
+              item,
+              p.gold < cost,
+              "secondary",
+            ),
+          )
+          .join(" ")}</section>`
+      : ""
+  }<section class="card"><h2>Gemeinsame Questgegenstände</h2><p>${esc(state.quest.join(" · ") || "Noch keine gefunden.")}</p></section>`;
 }
-function reward(){
-  const p=state.me;
-  if(!p) return '';
-  if(p.reward)return panel('Deine Belohnung','<p>'+esc(p.reward)+'</p>');
-  return panel('Deine Belohnung','<p>Wähle einen Bonus oder behalte einen Gegenstand als Erbstück.</p><div class="controls">'+stats.map(x=>button('+1 '+x,'upgrade',x)).join('')+'</div>'+
-    (p.gear.length?'<form id="reward" class="join-form"><div><label for="relic">Erbstück</label><select name="item" id="relic">'+p.gear.map(i=>'<option>'+esc(i)+'</option>').join('')+'</select></div><button>Behalten</button></form>':''));
+function skills() {
+  const p = state.me,
+    c = state.classes[p.classId];
+  return `<section class="card"><div class="eyebrow">${p.focus}/${p.maxFocus} Fokus · ${esc(c.name)}</div><h2>Deine Skills</h2><p>Schutz und Heilung wirken direkt. Angriffs-Skills zeigen zuerst einen Würfelplan mit Chance und Risiko. Verteidigen im Kampf stellt 1 Fokus wieder her.</p>${[
+    c.skill,
+    c.advanced,
+  ]
+    .map((id) => {
+      const sk = state.skills[id],
+        locked = p.level < sk.level;
+      return `<article class="skill-card ${sk.backlash ? "risky" : ""}"><div class="item-title"><h3>${esc(sk.name)}</h3><span>${sk.cost} Fokus</span></div><p>${esc(sk.desc)}</p>${locked ? '<p class="muted">Wird auf Stufe 2 freigeschaltet.</p>' : `<form data-skill="${id}">${sk.kind === "heal" ? targetSelect() : ""}<button ${state.pending || p.down || p.focus < sk.cost || (state.combat && !state.combat.mine) ? "disabled" : ""}>${["attack", "risk", "tame"].includes(sk.kind) ? "Einsatz vorbereiten" : "Skill einsetzen"}</button></form>`}</article>`;
+    })
+    .join("")}</section>`;
 }
-function panorama(scene){
-  const props=[
-    scene.rope?'<span class="room-prop prop-rope" role="img" aria-label="Seil am Boden"></span>':'',
-    scene.stone?'<span class="room-prop prop-stone" role="img" aria-label="Stein am Boden"></span>':'',
-    '<span class="room-prop prop-chest '+(scene.chest==='open'?'prop-open':'')+'" role="img" aria-label="'+(scene.chest==='open'?'Offene Truhe':'Geschlossene Truhe')+'"><span></span></span>',
-    scene.loot?'<span class="room-prop prop-loot" role="img" aria-label="Goldener Nugget in der Truhe"></span>':''
-  ].join('');
-  return '<div class="scene"><div class="panorama" tabindex="0" aria-label="Raumansicht. Wischen oder die Pfeiltasten nutzen, um sich umzusehen."><div class="panorama-content"><img src="/entry.webp" alt="Steinerne Gruft mit Tor und Fackeln" draggable="false">'+props+'</div></div><p>Zum Umschauen wischen oder ziehen</p></div>';
+function pendingPanel() {
+  const q = state.pending;
+  if (!q) return "";
+  return `<section class="dice-plan ${q.downside.includes("Jeder") ? "risky" : ""}" role="region" aria-label="Würfelplan"><div class="eyebrow">${esc(q.actor)} · virtueller W20</div><h2>${esc(q.name)}</h2><div class="dice-equation">W20 + ${q.bonus} <span>gegen ${q.dc}</span><b>${q.chance}%</b></div><p><strong>Erfolg:</strong> ${esc(q.success)}</p><p class="risk-copy"><strong>Fehlschlag:</strong> ${esc(q.downside)}</p><p>${q.cost} Fokus · Verbrauch erst beim Würfeln</p>${q.mine ? `<div class="dice-controls">${button(rolling ? "Würfelt …" : "🎲 Jetzt würfeln", "roll", "", rolling)}${button("Abbrechen", "cancel", "", rolling, "secondary")}</div>` : "<p>Wartet auf den Wurf des aktiven Helden.</p>"}</section>`;
 }
-function bindPanorama(previous){
-  const pane=app.querySelector('.panorama');
-  if(!pane) return;
-  pane.scrollLeft=previous??(pane.scrollWidth-pane.clientWidth)/2;
-  let drag=null;
-  pane.addEventListener('pointerdown',event=>{
-    if(event.pointerType!=='mouse' || event.button!==0) return;
-    drag={start:event.clientX,scroll:pane.scrollLeft};
-    pane.setPointerCapture(event.pointerId);
-  });
-  pane.addEventListener('pointermove',event=>{
-    if(drag) pane.scrollLeft=drag.scroll-(event.clientX-drag.start);
-  });
-  pane.addEventListener('lostpointercapture',()=>{drag=null;});
-  pane.addEventListener('keydown',event=>{
-    if(event.key!=='ArrowLeft' && event.key!=='ArrowRight') return;
-    event.preventDefault();
-    pane.scrollLeft+=event.key==='ArrowLeft'?-100:100;
-  });
+function chat() {
+  const p = state.me;
+  const finished = ["won", "lost"].includes(state.status);
+  return `${monsterPanel()}${diceResult()}${quickActions()}<section id="chat" class="chat" role="log" aria-label="Gemeinsamer Spielverlauf">${state.messages.map((m) => `<article class="chat-message ${m.who === "Spielleitung" ? "narrator" : "player"}"><div class="speaker">${esc(m.who)}</div><p>${esc(m.text)}</p></article>`).join("")}</section>${state.pending ? pendingPanel() : finished ? `<section class="composer"><strong>${state.status === "won" ? "Die Krone gehört euch." : "Die Gruft hat gewonnen."}</strong><p>Charaktere und Rucksäcke bleiben in ihren Tabs sichtbar.</p>${button("Neue Expedition", "exit")}</section>` : `<form id="idea" class="composer"><label for="phrase">${state.combat ? (state.combat.mine ? "Du bist am Zug" : "Aktiv: " + esc(state.combat.turn) + " · Untersuchen geht trotzdem") : "Was tust du, " + esc(p.alias) + "?"}</label><div class="send-row"><textarea id="phrase" name="idea" maxlength="500" required rows="2" placeholder="Ich untersuche die Kettenwinde …">${esc(draft)}</textarea><button>Senden</button></div></form>`}`;
 }
-function wayPanel(){
-  if(!state.paths.length || state.status!=='play') return '';
-  const canMove=state.host&&state.me;
-  const chooser=canMove?'move':'route';
-  const routes=state.paths.map(path=>{
-    const votes=(state.routeVotes??[]).filter(id=>id===path.id).length;
-    if(!state.me) return esc(path.name)+(votes?' · '+votes+'/'+state.players.length+' Stimmen':'');
-    return button(path.name+(votes?' · '+votes+'/'+state.players.length:''),chooser,path.id,state.vote===path.id?'active':'',!!state.pending);
-  });
-  return panel('Wohin?',state.me?'<div class="actions">'+routes.join('')+'</div>':list(routes)+(state.players.length?' <p>Stimmt auf euren Handys ab.</p>':''));
+function phone() {
+  const p = state.me;
+  return `<div class="phone-top"><div><span class="eyebrow">${esc(state.room.name)}</span><small>${esc(state.classes[p.classId].name)} · Stufe ${p.level}</small></div><div class="phone-vitals"><b>${p.hp}/${p.maxHp} LP</b><small>${p.focus}/${p.maxFocus} Fokus</small></div></div><nav class="phone-nav" aria-label="Heldenansicht">${[
+    ["chat", "Chat"],
+    ["hero", "Held"],
+    ["bag", "Rucksack"],
+    ["skills", "Skills"],
+    ["map", "Karte"],
+  ]
+    .map(
+      ([id, name]) =>
+        `<button data-tab="${id}" aria-current="${tab === id ? "page" : "false"}">${name}${id === "hero" && p.points ? " •" : ""}${id === "bag" && state.loot.length ? " •" : ""}</button>`,
+    )
+    .join(
+      "",
+    )}</nav>${playGuide()}<details class="room-context"><summary>Raum, Wege & Beute</summary><p>Sichtbar: ${esc(state.room.objects.join(", "))}</p><p>Wege: ${esc(state.room.paths.map((p) => p.name).join(" · "))}</p><p>Freie Beute: ${esc(state.loot.join(", ") || "keine")}</p></details><div class="phone-content ${tab === "chat" ? "chat-tab" : ""}">${tab === "hero" ? hero() : tab === "bag" ? inventory() : tab === "skills" ? skills() : tab === "map" ? dungeonPlan() : chat()}</div>${tab !== "chat" && state.pending ? pendingPanel() : ""}`;
 }
-function game(){
-  const room=state.room;
-  const playing=state.status==='play';
-  const can=playing&&state.me?.hp>0&&!state.me?.sleep&&!state.pending;
-  const ways=wayPanel();
-  const actions=can?panel('Was versuchst du?','<div class="actions">'+room.options.map(a=>button(a.name,'act',a.id)).join('')+
-    (room.enemy?button('Mit bloßen Händen angreifen','act','attack'):'')+button('Genauer hinsehen','look')+'</div><form id="idea" class="join-form"><div><label for="phrase">Eigene Idee</label><input name="idea" id="phrase" maxlength="180" placeholder="Ich hebe einen Stein auf …" required></div><button>Versuchen</button></form>'+(state.me.ideaNote?'<p class="idea-note" role="status">'+esc(state.me.ideaNote)+'</p>':'')):'';
-  const setting='<section class="roomheader"><div class="eyebrow">'+(state.status==='won'?'Die Krone gehört euch':state.status==='lost'?'Die Gruft hat gewonnen':'Raum '+state.explored.length)+'</div><h1>'+esc(room.name)+'</h1><p>'+esc(state.status==='lost'?'Die Gruft bleibt verschlossen. Eure Sterbeurkunden liegen zur Abholung bereit.':room.story)+'</p>'+
-    (room.enemy&&playing?'<div class="resources">'+pill(room.enemy.name+' · '+room.enemy.hp+' LP','enemy')+'</div>':'')+'</section>';
-  const tableScene=state.host&&playing&&state.scene?panorama(state.scene):'';
-  return setting+tableScene+'<div class="columns"><div class="stack">'+rollPanel()+actions+ways+(state.status==='won'?reward():'')+
-    (playing?'':button('Zur Startseite','exit'))+panel('Was passiert ist',list(state.log.map(esc),'story-log'))+'</div><div class="stack">'+gear()+party()+
-    panel('Entdeckte Räume',list(state.explored.map(r=>esc((r.here?'◆ ':'◇ ')+r.name))))+'</div></div>';
-}
-function render(){
-  topStatus.textContent=state?'Raum '+state.code+(state.host?' · Spielleitung':''):'3–6 Spieler · 1 echter W20';
-  const panScroll=app.querySelector('.panorama')?.scrollLeft;
-  const active=document.activeElement;
-  const focusId=active?.id;
-  const oldValue=focusId&&['INPUT','SELECT'].includes(active.tagName)?active.value:null;
-  app.innerHTML=state?(state.status==='lobby'?lobby():game()):home();
-  bindPanorama(panScroll);
-  if(focusId&&oldValue!==null){
-    const next=document.getElementById(focusId);
-    if(next){next.value=oldValue;next.focus({preventScroll:true});}
+function render() {
+  const active = document.activeElement,
+    focused = active?.id,
+    sel = active?.selectionStart;
+  const chatEl = document.querySelector("#chat");
+  const near =
+    !chatEl ||
+    chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight < 110;
+  const old = chatEl?.scrollTop ?? 0;
+  document.body.classList.toggle(
+    "table-mode",
+    Boolean(state && !state.me && state.status !== "lobby" && !state.legacy),
+  );
+  document.body.classList.toggle(
+    "phone-mode",
+    Boolean(state?.me && state.status !== "lobby" && !state.legacy),
+  );
+  document.body.classList.toggle("rolling", rolling);
+  status.textContent =
+    connection ||
+    (state
+      ? "Raum " + state.code + (state.me ? " · " + state.me.alias : " · Tablet")
+      : "Dungeon-Crawler · Online");
+  app.innerHTML = !state
+    ? home()
+    : state.legacy
+      ? '<section class="card"><h1>Neue Expedition bereit</h1><p>Dieser Raum stammt aus der früheren Version. Öffnet einen neuen Raum für Klassen, Monster und virtuellen Würfel.</p>' +
+        button("Neuen Raum öffnen", "exit") +
+        "</section>"
+      : state.status === "lobby"
+        ? lobby()
+        : state.me
+          ? phone()
+          : tablet();
+  const next = document.querySelector("#chat");
+  if (next) next.scrollTop = near ? next.scrollHeight : old;
+  if (focused) {
+    const field = document.getElementById(focused);
+    if (field) {
+      field.focus({ preventScroll: true });
+      if (typeof sel === "number" && field.type !== "number")
+        field.setSelectionRange(sel, sel);
+    }
   }
 }
-async function resume(code,silent=false){
-  try{update(await ask(code),true);}catch(error){if(!silent)say(error.message);}
-}
-app.addEventListener('click',async event=>{
-  const target=event.target.closest('button[data-type]');
-  if(!target) return;
-  const {type,value}=target.dataset;
-  if(type==='create'||type==='solo') return create(type==='solo');
-  if(type==='resume'){history.replaceState({},'','/?room='+value);return resume(value);}
-  if(type==='copy'){
-    if(navigator.clipboard) try {await navigator.clipboard.writeText(shareUrl());return say('Einladungslink kopiert.');}catch{}
-    const link=document.querySelector('#share');
-    if(link){link.focus();link.select();return say('Der Link ist markiert. Kopiere ihn über das Menü.');}
-    return say(shareUrl());
+app.addEventListener("input", (e) => {
+  if (e.target.id === "phrase") draft = e.target.value;
+});
+app.addEventListener("change", (e) => {
+  if (e.target.name === "target") targetId = e.target.value;
+});
+app.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const f = e.target,
+    d = Object.fromEntries(new FormData(f));
+  if (f.id === "join")
+    return action(
+      { type: "join", alias: d.alias, catchphrase: d.catchphrase },
+      d.code.trim().toUpperCase(),
+    );
+  if (f.id === "idea") return action({ type: "act", idea: d.idea });
+  if (f.dataset.use)
+    return action({ type: "use", item: f.dataset.use, target: d.target });
+  if (f.dataset.give)
+    return action({ type: "give", item: f.dataset.give, target: d.target });
+  if (f.dataset.skill)
+    return action({ type: "skill", skill: f.dataset.skill, target: d.target });
+});
+app.addEventListener("click", async (e) => {
+  const tabBtn = e.target.closest("[data-tab]");
+  if (tabBtn) {
+    tab = tabBtn.dataset.tab;
+    render();
+    return;
   }
-  if(type==='alsojoin') return run({type:'join'});
-  if(type==='ideaItem'){
-    const idea=document.querySelector('#phrase');
-    if(idea){
-      idea.value='Ich nehme '+value+' und ';
-      idea.scrollIntoView({block:'center'});
-      idea.focus({preventScroll:true});
+  const el = e.target.closest("[data-type]");
+  if (!el) return;
+  const { type, value } = el.dataset;
+  if (type === "create" || type === "solo") {
+    if (busy) return;
+    busy = true;
+    try {
+      state = await api(null, { solo: type === "solo" });
+      if (type === "solo")
+        state = await api(state.code, { type: "join", alias: "Entdecker" });
+      save("gruft.room", state.code);
+      history.replaceState({}, "", "/?room=" + state.code);
+      render();
+    } catch (err) {
+      error(err.message);
+    } finally {
+      busy = false;
     }
     return;
   }
-  if(type==='exit'){state=null;history.replaceState({},'','/');render();return;}
-  const field={choose:'hero',move:'room',route:'room',act:'action',use:'item',upgrade:'reward'}[type];
-  return run(field?{type,[field]:value}:{type});
+  if (type === "exit") {
+    state = null;
+    draft = "";
+    tab = "chat";
+    history.replaceState({}, "", "/");
+    render();
+    return;
+  }
+  if (type === "resume") return resume(read("gruft.room"));
+  if (type === "copy") {
+    try {
+      await navigator.clipboard.writeText(share());
+      error("Einladungslink kopiert.");
+    } catch {
+      error("Kopiere den Link aus dem Feld.");
+    }
+    return;
+  }
+  if (type === "roll") {
+    if (busy || rolling) return;
+    rolling = true;
+    render();
+    await Promise.all([
+      action({ type: "roll" }),
+      new Promise((r) => setTimeout(r, 650)),
+    ]);
+    rolling = false;
+    render();
+    return;
+  }
+  if (type === "scene") return action({ type: "act", idea: value });
+  if (["route", "help", "team", "catchphrase"].includes(type))
+    return action({ type, target: value, room: state.room.id });
+  const field = {
+    choose: "classId",
+    talent: "talent",
+    equip: "item",
+    loot: "item",
+    buy: "item",
+    unequip: "slot",
+  }[type];
+  return action(
+    field
+      ? { type: type === "equip" ? "use" : type, [field]: value }
+      : { type },
+  );
 });
-app.addEventListener('submit',event=>{
-  event.preventDefault();
-  const form=event.target;
-  const data=Object.fromEntries(new FormData(form));
-  if(form.id==='join') return join(data.code.trim().toUpperCase(),'');
-  if(form.id==='dice') {document.activeElement.blur();return run({type:'roll',die:data.die});}
-  if(form.id==='idea') {document.activeElement.blur();return run({type:'act',idea:data.idea});}
-  if(form.id==='reward') return run({type:'upgrade',reward:'Erbstück',item:data.item});
-  if(form.dataset.form) return run({type:form.dataset.form==='heal'?'use':'give',item:form.dataset.item,target:data.target});
-});
+async function resume(code) {
+  try {
+    state = await api(code);
+    render();
+  } catch (e) {
+    error(e.message);
+  }
+}
 render();
-const resumeCode=params.get('room')??invite;
-if(resumeCode) resume(resumeCode,true);
-let polling=false;
-setInterval(async()=>{
-  if(!state||sending||polling||document.hidden) return;
-  polling=true;
-  const code=state.code;
-  try{const next=await ask(code);if(state?.code===code&&!sending)update(next);}catch{}finally{polling=false;}
-},1200);
+if (params.get("room")) resume(params.get("room"));
+let polling = false;
+setInterval(async () => {
+  if (!state || busy || polling || document.hidden) return;
+  polling = true;
+  const code = state.code;
+  try {
+    const next = await api(code);
+    if (
+      state?.code === code &&
+      !busy &&
+      (next.version !== state.version || connection)
+    ) {
+      state = next;
+      connection = "";
+      render();
+    }
+  } catch {
+    connection = "Verbindung unterbrochen · erneuter Versuch …";
+    status.textContent = connection;
+  } finally {
+    polling = false;
+  }
+}, 1000);
