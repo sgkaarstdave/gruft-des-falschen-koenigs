@@ -95,7 +95,7 @@ try {
   await act(a, "Ich öffne die Eichentür", "öffnet die Eichentür");
   await act(a, "Ich gehe zur Wache", "Stimmen");
   await act(b, "Ich stimme zu", "Jetzt: Melli");
-  await at(a, /Skelettamt/);
+  await at(a, /Amt für ungeklärte Restlebenszeit/);
   await a
     .getByRole("navigation", { name: "Heldenansicht" })
     .getByRole("button", { name: "Skills", exact: true })
