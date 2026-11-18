@@ -12,6 +12,8 @@ Das Tablet zeigt immer den aktuellen Raum, die Erzählung, Gruppen-LP und im Kam
 
 Auf jedem Handy gibt es vier Tabs: **Chat, Held, Rucksack und Skills**. Weltaktionen bleiben frei formulierte Sätze. Beispielsweise „Ich untersuche die Winde“, „Ich greife Günther an“, „Ich verteidige mich“ oder „Ich helfe Melli auf“. Inventar und Skills sind zusätzlich direkt bedienbar. Bei unklaren Absichten fragt die lokale regelbasierte Spielleitung nach. Sie ist kein unbegrenzt improvisierendes Sprachmodell und benötigt keinen API-Schlüssel.
 
+![Große Tablet-Kulisse mit Kampf- und Gruppenanzeige](docs/tablet-crawler.jpg)
+
 ## Charaktere und Entwicklung
 
 Sechs Klassen mit unterschiedlichen LP, Attributen, Waffen und Skills:
