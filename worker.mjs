@@ -35,7 +35,7 @@ async function api(req, db) {
     const d = await req.json();
     for (let i = 0; i < 4; i++) {
       const key = roomCode();
-      const state = crawlerNewRoom(id, d.solo === true);
+      const state = crawlerNewRoom(id, d.solo === true, true);
       const r = await db
         .prepare("INSERT OR IGNORE INTO rooms (code,state) VALUES (?,?)")
         .bind(key, JSON.stringify(state))

@@ -32,6 +32,13 @@ export const dungeonAliases={
 };
 export function dungeonPaths(s,rooms,id=s.room){return rooms[id].paths.filter(to=>!((id==='lager'&&to==='falle'||id==='falle'&&to==='lager')&&!s.facts.shortcut));}
 export function dungeonGate(s,from,to){
+ if(s.expedition){
+  if(from==='gabel'&&to==='wache'&&!s.facts.oakDoor)return 'Eine verriegelte Eichentür versperrt den Gang.';
+  if(from==='bruecke'&&to==='schmiede'&&!s.facts.bridge)return 'Zwischen euch und der Schmiede klafft ein Abgrund.';
+  if(from==='archiv'&&to==='schmiede'&&!s.facts.forgeHatch)return 'Die Eisenluke klemmt im Rahmen.';
+  if(from==='falle'&&to==='grabkammer'&&!s.facts.trapSafe)return 'Der Gang zur Grabkammer führt direkt über die gespannte Druckplatte.';
+  return null;
+ }
  if(from==='gabel'&&to==='wache'&&!s.facts.oakDoor)return 'Die Eichentür ist verriegelt. Ein Eisenschlüssel oder ein angekündigter Versuch mit Brecheisen kann sie öffnen. In der Vorratsgrotte könnten die vermissten Praktikanten etwas hinterlassen haben.';
  if(from==='bruecke'&&to==='schmiede'&&!s.facts.bridge)return 'Die Brücke ist gebrochen. Ein sicherer Übergang braucht Seil und Brett. Ein Sprung ist eine riskante Alternative mit angekündigtem Wurf.';
  if(from==='archiv'&&to==='schmiede'&&!s.facts.forgeHatch)return 'Die Eisenluke ist verklemmt. Ein Brecheisen könnte sie öffnen; von der Schmiedeseite gibt es einen Riegel.';

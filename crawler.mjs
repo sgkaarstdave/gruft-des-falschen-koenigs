@@ -412,6 +412,14 @@ const Clog = (s, text, who = "Spielleitung") => {
 };
 const Cp = (s, id) => s.players.find((p) => p.id === id);
 const Croom = (s) => crawlerRooms[s.room];
+const CexpeditionScenes = {
+  tor: "Das Steintor steht einen Spalt offen. Dahinter führen Stufen hinab. Am Tor hängt ein Gong mit Filzeinlage. Im steinernen Becken schimmert Metall.",
+  bruecke: "Die Hängebrücke endet über schwarzem Wasser. Zwischen den gerissenen Tauen fehlen Planken. Ein Eisenhaken steckt im Fels. Gegenüber glimmt eine Esse.",
+  falle: "Eine rechteckige Platte sitzt leicht erhöht im Boden. Speerspitzen glitzern in den Wandöffnungen. Neben der Tür steckt ein Hebel, eine Rille läuft zum Gegengewicht.",
+  kapelle: "Eine Geistergesellschaft sitzt vor leeren Tellern. Die Braut blickt zur Buffetglocke. Durch den Seitenbogen hört ihr Horst mit seinem Teppich streiten.",
+  grabkammer: "Erwin von Knochenfrist hält eine Hellebarde quer vor ein versiegeltes Grab. Neben ihm hängt eine Kette, unter der Decke sammelt sich Rauch.",
+  thron: "Horst sitzt auf einem lebendigen Teppich. Die Krone baumelt am Kronleuchter. Sonnen-, Mond- und Grabrunen ziehen sich durch den Stein hinter dem Thron.",
+};
 const Cboard = (s) => s.boards[s.room];
 const Cactive = (s) => s.combat && Cboard(s).enemy?.hp > 0;
 const Calive = (s) => s.players.filter((p) => p.hp > 0);
@@ -439,11 +447,12 @@ export function secureD20() {
   } while (n >= 240);
   return (n % 20) + 1;
 }
-export function crawlerNewRoom(host, solo = false) {
+export function crawlerNewRoom(host, solo = false, expedition = false) {
   return {
     crawler: 3,
     host,
     solo,
+    expedition,
     status: "lobby",
     players: [],
     room: "tor",
@@ -535,7 +544,7 @@ function Cintent(s) {
     e = Croom(s).enemy;
   const alive = Calive(s);
   const phase = (c.round - 1) % 3;
-  const target = alive[(c.round - 1) % alive.length];
+  const pressure = s.expedition ? Math.min(4, Math.max(0, c.round - 3)) : 0;
   c.intent = {
     name: e.pattern[phase],
     targets:
@@ -545,12 +554,13 @@ function Cintent(s) {
             { length: Math.ceil(alive.length / 2) },
             (_, i) => alive[(c.round - 1 + i) % alive.length].id,
           ),
-    damage:
+    damage: pressure + (
       phase === 1
         ? Math.max(3, e.damage - 2)
         : phase === 2
           ? e.damage + 3
-          : e.damage,
+          : e.damage
+    ) + (s.expedition && s.room === "thron" && !s.quest.includes("Mondsiegel") ? 2 : 0),
     area: phase === 1,
   };
   c.queue = alive.map((p) => p.id);
@@ -558,7 +568,7 @@ function Cintent(s) {
   c.acted = [];
   Clog(
     s,
-    `Runde ${c.round}. Angekündigt: ${c.intent.name} → ${c.intent.targets.map((id) => Cp(s, id).alias).join(", ")}. ${c.intent.damage} Basisschaden nach euren Zügen; Rüstung und Schutz zählen. Jetzt: ${alive[0].alias}.`,
+    `Runde ${c.round}. Angekündigt: ${c.intent.name} → ${c.intent.targets.map((id) => Cp(s, id).alias).join(", ")}. ${c.intent.damage} Basisschaden nach euren Zügen.${pressure ? " Der Kampf verschärft sich (+" + pressure + " Schaden)." : ""}${s.expedition ? "" : " Jetzt: " + alive[0].alias + "."}`,
   );
 }
 function CstartFight(s) {
@@ -566,11 +576,11 @@ function CstartFight(s) {
   if (b.clear) return;
   if (!b.enemy) {
     const e = Croom(s).enemy;
+    const extra = s.expedition && s.room === "thron" && !s.quest.includes("Grabessiegel") ? 10 : 0;
+    const hp = e.hp + e.per * s.players.length + Math.max(0, s.players.length - 2) * 5 + extra;
     b.enemy = {
-      hp:
-        e.hp + e.per * s.players.length + Math.max(0, s.players.length - 2) * 5,
-      maxHp:
-        e.hp + e.per * s.players.length + Math.max(0, s.players.length - 2) * 5,
+      hp,
+      maxHp: hp,
     };
   }
   s.combat = {
@@ -638,16 +648,27 @@ function Cadvance(s, p) {
   if (!Cactive(s)) return;
   const c = s.combat;
   c.acted.push(p.id);
+  if (s.expedition) {
+    if (!c.queue.some(id => CmayAct(s, id))) CenemyTurn(s);
+    return;
+  }
   c.index++;
   while (c.index < c.queue.length && !Cp(s, c.queue[c.index]).hp) c.index++;
   if (c.index >= c.queue.length) CenemyTurn(s);
   else Clog(s, `Am Zug: ${Cp(s, c.queue[c.index]).alias}.`);
 }
+function CmayAct(s, id) {
+  const c = s.combat;
+  return s.expedition
+    ? c.queue.includes(id) && !c.acted.includes(id) && Boolean(Cp(s, id)?.hp)
+    : c.queue[c.index] === id;
+}
+
 function Cturn(s, p) {
   if (s.pending)
     Cfail("Zuerst den angekündigten Wurf abschließen oder abbrechen.");
   if (!p.hp) Cfail("Du liegst am Boden. Lass dir von einem Freund helfen.");
-  if (Cactive(s) && s.combat.queue[s.combat.index] !== p.id)
+  if (Cactive(s) && !CmayAct(s, p.id))
     Cfail(
       "Noch nicht dein Zug. Untersuchen und im Chat sprechen geht jederzeit.",
     );
@@ -655,6 +676,13 @@ function Cturn(s, p) {
 function ChelpUp(s, p, target) {
   Cturn(s, p);
   if (!target || target.hp !== 0) Cfail("Wähle einen Helden, der am Boden liegt.");
+  if (s.expedition) {
+    const board = Cboard(s);
+    board.rallied ??= [];
+    if (board.rallied.includes(target.id))
+      Cfail("Hier wurde diese Figur schon einmal aufgerichtet. Sie braucht jetzt Heilung.");
+    board.rallied.push(target.id);
+  }
   target.hp = 3;
   Clog(s, `${p.alias} hilft ${target.alias} auf: 3 LP. Im Kampf kostet das den Zug.`);
   return Cadvance(s, p);
@@ -716,11 +744,15 @@ function Cattack(s, p, skill) {
   if (!Cactive(s)) Cfail("Hier gibt es gerade kein aktives Monster.");
   const weapon = crawlerItems[p.weapon];
   const q = skill ? crawlerSkills[skill] : null;
+  const mark = q?.kind !== "tame" && Boolean(s.combat.markedBy && s.combat.markedBy !== p.id);
   Cprepare(s, p, {
     kind: q?.kind === "tame" ? "tame" : q?.kind === "risk" ? "risk" : "attack",
     name: q?.name ?? "Angriff mit " + p.weapon,
     stat: q?.stat ?? weapon.stat,
-    dc: q?.dc ?? Croom(s).enemy.defense,
+    dc: (q?.dc ?? Croom(s).enemy.defense) +
+      (s.expedition && s.room === "thron" && !s.quest.includes("Sonnensiegel") ? 2 : 0) -
+      (mark ? 3 : 0),
+    mark,
     power:
       (q?.power ?? weapon.power) +
       (p.level - 1) +
@@ -747,7 +779,9 @@ function Cskill(s, p, key, target) {
   Cturn(s, p);
   if (p.focus < sk.cost)
     Cfail(
-      "Nicht genug Fokus. Verteidigen stellt im Kampf 1 Fokus wieder her; Fokusbrause hilft ebenfalls.",
+      s.expedition
+        ? "Nicht genug Fokus. Verteidigen kann pro Begegnung einmal 1 Fokus zurückgeben. Auch Fokusbrause hilft."
+        : "Nicht genug Fokus. Verteidigen stellt im Kampf 1 Fokus wieder her; Fokusbrause hilft ebenfalls.",
     );
   if (["attack", "risk", "tame"].includes(sk.kind)) {
     if (
@@ -836,7 +870,8 @@ function Center(s, room) {
     loot: [...(crawlerRooms[room].loot ?? [])],
     rewarded: false,
   };
-  Clog(s, crawlerRooms[room].name + " — " + (revisit ? "Ihr kehrt zurück. Bereits geöffnete Behälter und Wege bleiben offen; besiegte Gegner kommen nicht wieder. Am Boden: " + (Cboard(s).loot.join(", ") || "keine freie Beute") + ". Sichtbar: " + crawlerRooms[room].objects.join(", ") : crawlerRooms[room].story));
+  const scene = (s.expedition && CexpeditionScenes[room]) || crawlerRooms[room].story;
+  Clog(s, crawlerRooms[room].name + " — " + (revisit ? "Ihr kehrt zurück. Am Boden: " + (Cboard(s).loot.join(", ") || "keine freie Beute") + ". Sichtbar: " + crawlerRooms[room].objects.join(", ") : scene));
   if (room === "ausgang") {
     s.status = "won";
     Clog(
@@ -874,7 +909,7 @@ function Cmove(s, p, target) {
       s,
       "Das Tor ist geschlossen. Gong und Steingesicht könnten weiterhelfen.",
     );
-  if (target === "kapelle" && !s.facts.door)
+  if (target === "kapelle" && !s.facts.door && !s.expedition)
     return Clog(
       s,
       "Die Kronentür ist versiegelt. Das Gästebuch und sein Königssiegel gehören zum Verschluss.",
@@ -1065,10 +1100,16 @@ function CideaLegacy(s, p, raw) {
     if (!Cactive(s))
       return Clog(s, "Hier müsst ihr euch gerade nicht verteidigen.");
     p.guard = 4;
-    p.focus = Math.min(CmaxFocus(p), p.focus + 1);
+    const board = Cboard(s);
+    board.recovered ??= [];
+    const recovers = !s.expedition || (p.focus < CmaxFocus(p) && !board.recovered.includes(p.id));
+    if (recovers) {
+      p.focus = Math.min(CmaxFocus(p), p.focus + 1);
+      if (s.expedition) board.recovered.push(p.id);
+    }
     Clog(
       s,
-      `${p.alias} verteidigt sich: 4 Schutz beim nächsten Monsterangriff und +1 Fokus.`,
+      `${p.alias} verteidigt sich: 4 Schutz beim nächsten Monsterangriff${recovers ? " und +1 Fokus" : ""}.`,
     );
     return Cadvance(s, p);
   }
@@ -1317,7 +1358,7 @@ export function crawlerApply(s, id, data, rng = secureD20) {
       hp: cls.hp,
       stats: [...cls.stats],
       focus: 3,
-      bag: [cls.weapon, "Nugget", "Nugget", "Fokusbrause"],
+      bag: s.expedition ? [cls.weapon, "Nugget"] : [cls.weapon, "Nugget", "Nugget", "Fokusbrause"],
       weapon: cls.weapon,
       armor: null,
       gold: 0,
@@ -1338,9 +1379,12 @@ export function crawlerApply(s, id, data, rng = secureD20) {
         "Mindestens zwei Spieler und eine Klasse pro Held werden benötigt.",
       );
     s.status = "play";
+    if (s.expedition) s.facts.gate = true;
     Clog(
       s,
-      "Auftrag: Besiegt den falschen König und bergt seine echte Krone. Im Kampf handelt ihr reihum; das Monster kündigt vor jeder Runde Ziel und Schaden an. Untersuchen ist kostenlos.",
+      s.expedition
+        ? "Auftrag: Bergt die Krone des falschen Königs. Besprecht am Tisch euren Plan. Jede stehende Figur hat pro Kampfrunde eine Aktion, ihr bestimmt die Reihenfolge."
+        : "Auftrag: Besiegt den falschen König und bergt seine echte Krone. Im Kampf handelt ihr reihum; das Monster kündigt vor jeder Runde Ziel und Schaden an. Untersuchen ist kostenlos.",
     );
     Center(s, "tor");
     return;
@@ -1357,6 +1401,7 @@ export function crawlerApply(s, id, data, rng = secureD20) {
       Cfail("Ungültige Würfelquelle.");
     p.focus -= q.cost ?? 0;
     s.pending = null;
+    if (q.mark) s.combat.markedBy = null;
     const success = die === 20 || (die !== 1 && die + q.bonus >= q.dc);
     s.lastRoll = {
       seq: s.seq + 1,
@@ -1539,6 +1584,7 @@ export function crawlerView(s, id, code, version) {
     code,
     version,
     solo: s.solo,
+    expedition: Boolean(s.expedition),
     host: s.host === id,
     status: s.status,
     room: {
@@ -1611,7 +1657,8 @@ export function crawlerView(s, id, code, version) {
       ? {
           round: combat.round,
           turn: Cp(s, combat.queue[combat.index])?.alias,
-          mine: combat.queue[combat.index] === id,
+          mine: CmayAct(s, id),
+          ready: s.expedition ? combat.queue.filter(id => CmayAct(s, id)).map(id => Cp(s, id).alias) : [],
           enemy: {
             name: room.enemy.name,
             title: room.enemy.title,
@@ -1642,9 +1689,11 @@ export function crawlerView(s, id, code, version) {
 // Intent interpretation is separate from authoritative state changes.
 function Cidea(s,p,raw){
  const request=dungeonNormalize(raw);
- if(/^(?:hilfe|help|anleitung|spielregeln|regeln|wie (?:geht|spielt|funktioniert|spiel ich|spielen wir))\b/.test(request))return Clog(s,dungeonHelp);
+ if(/^(?:hilfe|help|anleitung|spielregeln|regeln|wie (?:geht|spielt|funktioniert|spiel ich|spielen wir))\b/.test(request))
+  return Clog(s,s.expedition ? 'So spielt ihr: Beschreibt eure Absicht und möglichst ein Ziel. Die Gruppe entscheidet mit Mehrheit über Wege. Im Kampf wählt ihr die Reihenfolge selbst, jede stehende Figur hat eine Aktion. Das Tablet zeigt, wer noch handeln kann und wen der Gegner angreift. W20-Proben zeigen Chance und Folgen vorab. Ausrüstung, Vorräte und Klassenfähigkeiten liegen auf deinem Handy.' : dungeonHelp);
  if(/\b(?:hinweis|tipp|tip|hint)\b/.test(request)||/^(?:ich|wir) (?:komme|kommen) nicht weiter/.test(request)){
   if(/\b(?:kein|keinen|keine|nicht|ohne)\b/.test(request)&&!/nicht weiter/.test(request))return Clog(s,'Kein Hinweis. Ihr erkundet auf eigene Faust weiter.');
+  if(s.expedition)return Clog(s,'Hinweis: Beschreibt, was ihr näher betrachten oder versuchen wollt. Ihr könnt jederzeit über einen anderen Weg beraten.');
   s.hints??={};s.hints[p.id]??={};const level=Math.min(2,(s.hints[p.id][s.room]??0)+1);s.hints[p.id][s.room]=level;
   return Clog(s,`Hinweis ${level}/2 · `+dungeonHint(s,level)+(level===1?' Für einen konkreteren Tipp schreib „noch ein Hinweis“.':' Das ist die konkretere Hinweisstufe; die Handlung entscheidet ihr selbst.'));
  }
@@ -1664,6 +1713,26 @@ function Cidea(s,p,raw){
  const risk=(effect,name,stat,dc,harm,group=false)=>{if(s.facts[effect])return say('Dieser Weg ist bereits gesichert.');return Cprepare(s,p,{kind:'exploration',effect,name,stat,dc,harm,group,cost:0,success:'Der Mechanismus ist dauerhaft gesichert; der Weg ist offen.',downside:(group?'Jeder stehende Held':'Du')+' verliert '+harm+' LP. Der Weg bleibt gesperrt.'});};
  if(i.kind==='negated')return say('Du führst diese Handlung nicht aus. Beschreibe, was du stattdessen versuchen möchtest.');
  if(i.kind==='question')return say('Du kannst die Umgebung untersuchen, Werkzeuge kombinieren und eigene Versuche beschreiben. Riskante Handlungen erhalten vorab eine Würfelvorschau mit den genauen Folgen.');
+ if(s.expedition&&Cactive(s)&&i.kind!=='inspect'){
+  const target=Calive(s).find(ally=>ally.id!==p.id&&dungeonNormalize(ally.alias)&&
+    (' '+request.replace(/[^\p{L}\p{N}]+/gu,' ')+' ').includes(' '+dungeonNormalize(ally.alias).replace(/[^\p{L}\p{N}]+/gu,' ').trim()+' '));
+  if(target&&/\b(?:deck\w*|beschutz\w*|schirm\w*)\b/.test(request)){
+   Cturn(s,p);
+   target.guard=Math.max(target.guard??0,5);
+   say(`${p.alias} deckt ${target.alias}: 5 persönlicher Schutz gegen den angekündigten Angriff.`);
+   return Cadvance(s,p);
+  }
+  if(/\b(?:fint\w*|ablenk\w*|lenk\w*.*\bab|provozier\w*|tausch\w*|lock\w*.*fallgitter)\b/.test(request)&&Calive(s).length>1){
+   if(s.room==='wache'&&/fallgitter|lock\w*/.test(request))return CguardTeamAction(s,p);
+   Cturn(s,p);
+   if(s.combat.markedBy)return say('Der Gegner ist bereits abgelenkt. Der nächste Angriff eines anderen Helden nutzt die Öffnung.');
+   s.combat.markedBy=p.id;
+   say(`${p.alias} lenkt den Gegner ab. Der nächste Angriff eines anderen Helden hat einen um 3 niedrigeren Zielwert.`);
+   return Cadvance(s,p);
+  }
+  if(s.room==='wache'&&s.combat.lure&&/winde/.test(request)&&/zieh\w*|dreh\w*/.test(request))
+   return CguardTeamAction(s,p);
+ }
  if(i.kind==='agree'&&CrouteVotes(s).length)return Cagree(s,p);
  if(s.room==='tor'&&!s.facts.gate&&/^ich kenn(?:e)? (?:eine|ne) abkurzung[.!]?$/.test(request)){
   s.facts.gate=true;
@@ -1678,11 +1747,13 @@ function Cidea(s,p,raw){
   return to?Cmove(s,p,to):say('Wohin? Von hier führen Wege nach: '+paths.map(k=>crawlerRooms[k].name).join(' · ')+'. Du kannst den Raumnamen schreiben.');
  }
  if(i.kind==='inspect'){
+  if(s.expedition&&['kapelle','grabkammer','thron'].includes(s.room)&&/siegel|runen?|thron|bogen|tur/.test(t))
+   return say('Runen zeigen drei Bindungen: Sonne schärft Horsts Verteidigung, Mond stärkt seine Angriffe, Grab verleiht ihm Lebenskraft. Das zugehörige Siegel löscht jeweils die Bindung.');
   if(s.room==='archiv'&&/noten|deckel|melodie|truhe/.test(t))b.notes=true;
   if(s.room==='lager')return say(/rucksack|tasche/.test(t)?'Aus dem hängenden Rucksack ragt ein Eisenschlüssel. Du kannst den Rucksack öffnen oder den Schlüssel herausnehmen.':/eisen|schloss/.test(t)?(b.iron?'Die Eisentruhe steht offen und ist leer. Ihr könnt den Inhalt nicht ein zweites Mal finden.':'Die Eisentruhe hat ein Messingschloss. Der Schlüssel vom Eingang passt. Die Vorratskiste daneben ist unverschlossen.'):/rune|riss/.test(t)?'Eine unvollständige Mondrune verläuft im Mauerriss. Runenkreide könnte die verborgenen Linien verbinden.':'Auf der Werkbank: '+(b.loot.join(', ')||'keine freie Beute mehr')+'. Dazu Vorratskiste, verschlossene Eisentruhe und hängender Rucksack.');
-  if(s.room==='falle')return say(s.facts.trapSafe?'Die Druckplatte ist dauerhaft gesichert. Ihr könnt zur Grabkammer.':'Die Druckplatte zieht über das Gegengewicht die Speere heraus. Ein Brett mit Stein kann sie sicher blockieren. Mit Brecheisen lässt sich der Hebel riskant verkeilen (W20 + Geschick gegen 14, sonst 3 LP Gruppenschaden).');
+  if(s.room==='falle')return say(s.facts.trapSafe?'Die Druckplatte ist dauerhaft gesichert. Ihr könnt zur Grabkammer.':s.expedition?'Die Druckplatte ist mit dem Gegengewicht gekoppelt. Zwischen Platte und Boden ist ein schmaler Spalt. Der Hebel sitzt unter Spannung.':'Die Druckplatte zieht über das Gegengewicht die Speere heraus. Ein Brett mit Stein kann sie sicher blockieren. Mit Brecheisen lässt sich der Hebel riskant verkeilen (W20 + Geschick gegen 14, sonst 3 LP Gruppenschaden).');
   if(s.room==='gabel')return say('Die Wege führen zu Vorratsgrotte, Brücke, Pilzhöhle und Skelettamt. '+(s.facts.oakDoor?'Die Eichentür steht offen.':'Die Eichentür zum Amt ist verriegelt.')+' Am Boden: '+(b.loot.join(', ')||'keine freie Beute')+'.');
-  if(s.room==='bruecke')return say(s.facts.bridge?'Der gesicherte Übergang zur Schmiede bleibt begehbar. Die verbauten Materialien sind nicht mehr im Rucksack.':Croom(s).story);
+  if(s.room==='bruecke')return say(s.facts.bridge?'Der gesicherte Übergang zur Schmiede bleibt begehbar.':s.expedition?CexpeditionScenes.bruecke:Croom(s).story);
   if(s.room==='schmiede')return say((s.facts.forge?'Die Schmiede läuft. Jeder Held kann einmal für 8 Gold seine Waffe verbessern.':'Dem Blasebalg fehlt ein Zahnrad. Ein Ersatzteil könnte in der Eisentruhe liegen.')+' '+(s.facts.forgeHatch?'Die Eisenluke zum Archiv steht offen.':'Die Eisenluke besitzt hier einen einfachen Riegel.'));
   if(s.room==='quelle')return say(s.facts.springUsed?'Die Quelle hat ihre einmalige Kulanz bereits vergeben. Die Wasserkanäle und das Ventil bleiben zugänglich.':Croom(s).story);
   if(['pilze','grabkammer'].includes(s.room))return say(b.clear?'Der Wächter ist bezwungen. Das Siegel liegt bereits bei euren gemeinsamen Questgegenständen. Am Boden: '+(b.loot.join(', ')||'keine freie Beute')+'.':Croom(s).story+' '+Croom(s).enemy.weakness);
@@ -1695,7 +1766,7 @@ function Cidea(s,p,raw){
   if(found.length){for(const name of found){Cadd(p,name);b.loot.splice(b.loot.indexOf(name),1);}return say(p.alias+' nimmt: '+found.join(', ')+'.');}
  }
  // Shared seal locks cannot be bypassed by generic "open door" parsing.
- if(['kapelle','grabkammer'].includes(s.room)&&/siegel|mulde|throntur|dreisiegel|tur/.test(t)&&action&&!Cactive(s)){
+ if(!s.expedition&&['kapelle','grabkammer'].includes(s.room)&&/siegel|mulde|throntur|dreisiegel|tur/.test(t)&&action&&!Cactive(s)){
   const missing=['Sonnensiegel','Mondsiegel','Grabessiegel'].filter(x=>!s.quest.includes(x));
   if(missing.length)return say('Die Dreisiegeltür bleibt zu. Es fehlen: '+missing.join(', ')+'.');
   s.facts.throneDoor=true;return say('Sonne, Mond und Grab rasten ein. Die Dreisiegeltür zum Thronsaal ist jetzt offen.');
@@ -1717,12 +1788,17 @@ function Cidea(s,p,raw){
  }
  if(s.room==='gabel'&&/eichen|tur|schlussel|brecheisen/.test(t)&&action){
   if(s.facts.oakDoor)return say('Die Eichentür ist bereits offen. Dahinter liegt das Skelettamt.');
+  if(s.expedition&&/ramm\w*|eintret\w*|trete?\b.*\bein\b|aufbrech\w*/.test(t))
+   return risk('oakDoor','Eichentür mit Kraft aufbrechen',0,17,5);
+  if(s.expedition&&/magie|zauber\w*|telekine\w*/.test(t))
+   return risk('oakDoor','Riegel mit Magie verschieben',2,16,4);
   if(s.quest.includes('Eisenschlüssel')){s.facts.oakDoor=true;return say('Der Eisenschlüssel öffnet die Eichentür zum Skelettamt.');}
   if(has('Brecheisen'))return risk('oakDoor','Eichentür aufhebeln',0,14,3);
   return say('Die Eichentür ist verriegelt. Suche einen Eisenschlüssel oder hole ein Brecheisen aus der Vorratsgrotte.');
  }
  if(s.room==='bruecke'&&action&&/bruck|seil|brett|plank|haken|spring|sprung|repar|bau|sicher/.test(t)){
   if(s.facts.bridge)return say('Der Übergang ist bereits gesichert und bleibt offen.');
+  if(s.expedition&&/spring|sprung/.test(t))return risk('bridge','Riskanten Übergang erklettern',1,15,4,true);
   if(has('Seil')&&has('Brett')){Cremove(p,'Seil');Cremove(p,'Brett');s.facts.bridge=true;return say('Du verbaust Seil und Brett am Eisenhaken. Die ganze Truppe kann die Brücke jetzt sicher zur Schmiede überqueren.');}
   if(/spring|sprung/.test(t))return risk('bridge','Riskanten Übergang erklettern',1,15,4,true);
   return say('Für die sichere Reparatur brauchst du Seil UND Brett im eigenen Rucksack. Alternativ könnt ihr einen riskanten Übergang versuchen: Bei Fehlschlag verliert jeder 4 LP.');

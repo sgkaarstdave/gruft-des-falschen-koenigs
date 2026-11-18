@@ -77,9 +77,8 @@ try {
       contains,
     );
   }
-  await a.getByRole("button", { name: "Steingesicht ansprechen" }).click();
-  await a.getByRole("button", { name: "Steingesicht ansprechen" }).waitFor({ state: "detached" });
-  await a.getByRole("button", { name: /^Weggabelung/ }).click();
+  assert.equal(await a.getByRole("button", { name: /Steingesicht ansprechen|Gong untersuchen|Weggabelung/ }).count(), 0);
+  await act(a, "Ich gehe zur Weggabelung", "Stimmen");
   await tablet.locator(".table-actions").getByText(/Weggabelung.*1\/2/).waitFor();
   await b.bringToFront();
   await b.getByRole("button", { name: /^Weggabelung/ }).click();
@@ -94,7 +93,7 @@ try {
   await at(a, /Weggabelung/);
   await act(a, "Ich öffne die Eichentür", "öffnet die Eichentür");
   await act(a, "Ich gehe zur Wache", "Stimmen");
-  await act(b, "Ich stimme zu", "Jetzt: Melli");
+  await act(b, "Ich stimme zu", "Angekündigt");
   await at(a, /Amt für ungeklärte Restlebenszeit/);
   await a
     .getByRole("navigation", { name: "Heldenansicht" })
@@ -126,8 +125,9 @@ try {
   await a.getByRole("button", { name: "Chat", exact: true }).click();
   await b.bringToFront();
   await b.locator("#phrase").waitFor();
-  await b.getByRole("button", { name: "Verteidigen", exact: true }).click();
-  await tablet.locator(".monster-panel").getByText(/Melli am Zug/).waitFor();
+  assert.equal(await b.getByRole("button", { name: "Verteidigen", exact: true }).count(), 0);
+  await act(b, "Ich decke Melli", "Runde 2");
+  await tablet.locator(".monster-panel").getByText(/Runde 2.*Bereit/).waitFor();
   await tablet.bringToFront();
   await tablet.locator(".monster-panel").waitFor();
   await tablet.waitForFunction(

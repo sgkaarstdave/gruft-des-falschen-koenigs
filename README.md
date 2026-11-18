@@ -4,7 +4,7 @@
 
 Tablet: Raum öffnen. Handys: QR-Code scannen, Namen eingeben, Klasse wählen. Danach startet ein Handy die Expedition. 2–6 Spieler; zum Ausprobieren gibt es einen Solo-Modus. Internet genügt, ein gemeinsames WLAN oder Rechner ist nicht nötig.
 
-Sprecht Wege am Tisch ab und stimmt auf den Handys per Knopfdruck ab. Ziel, laufende Abstimmung und die letzten Ereignisse stehen auf dem Tablet. Im Kampf könnt ihr Angriffe, Verteidigung und Aufhelfen direkt auswählen. Bei Günther kann ein Held ihn unters Fallgitter locken, damit ein zweiter die Winde zieht.
+Das Tablet ist eure gemeinsame Spielleitung. Es zeigt Kulisse, Erzählung, Gegnerabsichten und offene Wegabstimmungen. Auf den Handys beschreibt ihr eure Ideen frei und verwaltet Helden, Rucksack, Beute und Skills. Bestätigungen erscheinen, sobald jemand einen Weg vorgeschlagen hat.
 
 Beim Beitritt kann jeder einen eigenen Insider-Spruch hinterlegen. Wenn Fokus fehlt, lässt sich der Spruch einmal beim Erkunden ausspielen. Er erscheint auf dem Tablet und bringt der Figur einen Fokuspunkt zurück.
 
@@ -18,13 +18,13 @@ Auf jedem Handy gibt es fünf Tabs: **Chat, Held, Rucksack, Skills und Karte**. 
 
 ## Anleitung und freiwillige Hinweise
 
-„So spielt ihr · Regeln & Hinweise“ steht auf der Startseite und während der Expedition auf dem Handy bereit. Im Chat erklärt „Hilfe“ die Regeln. „Hinweis“ gibt einen sanften Tipp zur aktuellen Situation, ein weiterer Hinweis wird konkreter. Es gibt zwei Stufen; keine automatische Lösung, keinen Ressourcenverbrauch und keinen verbrauchten Kampfzug. Bereits gelöste Mechanismen und aktive Kämpfe werden berücksichtigt. Die Hinweise können auch in bestehenden Runden genutzt werden.
+„So spielt ihr“ steht auf der Startseite und auf dem Handy. Im Chat erklärt „Hilfe“ die Regeln. Der Einstieg ist offen. Raumdetails erschließt ihr durch eigene Beobachtungen und Versuche.
 
 ## Verzweigter Höhlendungeon
 
 Die Weggabelung verbindet Vorratsgrotte, Pilzhöhle, Brücke und verriegeltes Skelettamt. Eine reparierbare Schmiede, eine Quelle, ein Speerkorridor, ein Geheimgang und das bewachte Ossuarium bieten zusätzliche Wege und Entscheidungen. Die Karte zeigt nur besuchte Räume und ihre angrenzenden Gänge. Verborgene Abkürzungen erscheinen erst nach ihrer Entdeckung.
 
-Zum Endgegner benötigt ihr Sonne, Mond und Grab: drei Siegel aus verschiedenen Begegnungen. Brösel der Ungewaschene lässt sich mit einem tatsächlich vorhandenen Nugget besänftigen; Erwin von Knochenfrist besteht auf seiner Hellebarde. Werkzeuge liegen sichtbar in den Räumen. Seil und Brett werden beim Brückenbau verbaut, ein Zahnrad repariert den Blasebalg. Werkzeuge lassen sich zwischen Spielern weitergeben. Behälter, Schmiede-Upgrades und Quellen vergeben ihren Nutzen nur einmal. Eine riskante Alternative kündigt Zielwert und Schaden vor dem virtuellen Wurf an.
+Ihr entscheidet, wann ihr euch dem Endgegner stellt. Drei optionale Siegel nehmen ihm je einen Vorteil: erhöhte Abwehr, zusätzlichen Schaden und zusätzliche LP. Brösel der Ungewaschene lässt sich mit einem tatsächlich vorhandenen Nugget besänftigen; Erwin von Knochenfrist besteht auf seiner Hellebarde. Werkzeuge liegen sichtbar in den Räumen. Seil und Brett werden beim Brückenbau verbaut, ein Zahnrad repariert den Blasebalg. Werkzeuge lassen sich zwischen Spielern weitergeben. Behälter, Schmiede-Upgrades und Quellen vergeben ihren Nutzen nur einmal. Eine riskante Alternative kündigt Zielwert und Schaden vor dem virtuellen Wurf an.
 
 **Freitext:** „Angriff“, „Attacke“, „ich greife an“, „hau drauf“ und häufige Tippfehler werden als dieselbe Absicht erkannt. Untersuchen, Nehmen, Öffnen, Verteidigen und Bewegung haben eigene Synonyme. Nach „Truhe öffnen“ kann die Spielleitung zwischen zwei Truhen nachfragen; „die eiserne“ beantwortet diese Rückfrage. Verneinungen und hypothetische Fragen führen keine Handlung aus. Diese Erkennung bleibt regelbasiert: Sie interpretiert viele Formulierungen, improvisiert aber keine beliebigen neuen Spielregeln.
 
@@ -53,13 +53,13 @@ Vor einem riskanten Einsatz zeigt der Würfelplan Attributbonus, Zielwert, genau
 
 ## Kämpfe
 
-Das Monster kündigt vor jeder Runde Ziele und Basisschaden an. Jeder stehende Held handelt in fester Zugfolge einmal; erst dann erfolgt genau der angekündigte Monsterangriff. Untersuchungen kosten keinen Zug. Mehr Spieler erhöhen Monster-LP und die Anzahl angekündigter Ziele.
+Das Monster kündigt vor jeder Runde Ziele und Basisschaden an. Jede stehende Figur hat eine Aktion; die Gruppe bestimmt die Reihenfolge. Erst danach erfolgt der angekündigte Gegnerangriff. Ab Runde 4 steigen die angekündigten Schäden schrittweise, maximal um 4. Untersuchungen kosten keinen Zug. Mehr Spieler erhöhen Monster-LP und die Anzahl angekündigter Ziele.
 
-- **Verteidigen:** 4 persönlicher Schutz und +1 Fokus.
+- **Verteidigen:** 4 persönlicher Schutz; pro Begegnung einmal +1 Fokus, wenn Fokus fehlt. Wer einen Verbündeten deckt, gibt ihm 5 Schutz. Wer den Gegner ablenkt, senkt den Zielwert für den nächsten Angriff eines anderen Helden um 3.
 - **Thekenritter-Schutz:** 3 Schutz für alle beim nächsten Monsterangriff.
 - **Nuggetmönch:** ein Monsterangriff fällt aus, einmal pro Kampf.
 - **Raumvorteil:** eine gelungene Aktion an der Einrichtung verursacht Schaden und schwächt den nächsten Monsterangriff; einmal erfolgreich pro Begegnung.
-- **Heilen/Aufhelfen:** kostet im Kampf den Zug, kann bewusstlose Freunde zurückholen.
+- **Heilen/Aufhelfen:** kostet im Kampf den Zug, kann bewusstlose Freunde zurückholen. Aufhelfen ohne Heilmittel funktioniert je Figur und Raum einmal.
 - **Rückzug:** Mehrheit der stehenden Helden, nur in einen besuchten Raum, 2 LP Schaden je stehender Figur. Das Monster behält seine LP.
 
 Heilmittel und Fokus sind begrenzt. In der Kapelle gibt es nach Einladung und Buffetglocke **genau eine volle Rast**. Es gibt kein automatisches Vollheilen nach jedem Kampf. Liegt die ganze Gruppe am Boden, ist die Expedition verloren.
