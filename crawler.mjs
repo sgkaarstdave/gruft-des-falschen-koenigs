@@ -652,6 +652,49 @@ function Cturn(s, p) {
       "Noch nicht dein Zug. Untersuchen und im Chat sprechen geht jederzeit.",
     );
 }
+function ChelpUp(s, p, target) {
+  Cturn(s, p);
+  if (!target || target.hp !== 0) Cfail("Wähle einen Helden, der am Boden liegt.");
+  target.hp = 3;
+  Clog(s, `${p.alias} hilft ${target.alias} auf: 3 LP. Im Kampf kostet das den Zug.`);
+  return Cadvance(s, p);
+}
+
+function CrouteVotes(s) {
+  const votes = Calive(s).map(p => s.votes[p.id]).filter(Boolean);
+  return [...new Set(votes)].map(id => ({
+    id,
+    name: crawlerRooms[id].name,
+    count: votes.filter(vote => vote === id).length,
+  }));
+}
+
+function Cagree(s, p) {
+  const routes = CrouteVotes(s);
+  if (routes.length === 1) return Cmove(s, p, routes[0].id);
+  Clog(s, "Mehrere Wege stehen zur Wahl. Tippe auf dein Ziel oder nenne den Raumnamen.");
+}
+
+function CguardTeamAction(s, p) {
+  Cturn(s, p);
+  if (!Cactive(s) || s.room !== "wache" || s.combat.setupUsed || Calive(s).length < 2)
+    Cfail("Der gemeinsame Fallgitter-Trick steht gerade nicht bereit.");
+  const combat = s.combat;
+  if (!combat.lure) {
+    combat.lure = p.id;
+    p.guard = Math.max(p.guard, 4);
+    Clog(s, `${p.alias} lockt Günther unters Fallgitter und erhält 4 Schutz. Ein anderer Held kann jetzt die Winde ziehen.`);
+    return Cadvance(s, p);
+  }
+  if (combat.lure === p.id) Cfail("Ein anderer Held muss die Winde ziehen.");
+  const power = 8 + 2 * s.players.length;
+  return Cprepare(s, p, {
+    kind: "environment", name: "Fallgitter im Team auslösen", stat: 1, dc: 8,
+    cost: 0, power,
+    success: `${power} Schaden und 2 weniger Monsterschaden in dieser Runde.`,
+    downside: "Kein Vorteil. Euer Ablenkungsmanöver bleibt für diese Begegnung vorbereitet.",
+  });
+}
 function Ctarget(s, p, id) {
   const target = Cp(s, id) || p;
   if (!target.classId) Cfail("Diese Figur ist noch nicht bereit.");
@@ -852,11 +895,11 @@ function Cmove(s, p, target) {
   if (!p.hp) Cfail("Am Boden kannst du keinen Raumwechsel abstimmen.");
   s.votes[p.id] = target;
   const required = Math.floor(Calive(s).length / 2) + 1,
-    count = Object.values(s.votes).filter((x) => x === target).length;
+    count = CrouteVotes(s).find(vote => vote.id === target).count;
   if (count < required)
     return Clog(
       s,
-      `${p.alias} schlägt ${retreat ? "Rückzug nach " : ""}${crawlerRooms[target].name} vor. ${count}/${required} Stimmen. Andere können „Ich stimme zu“ schreiben.`,
+      `${p.alias} stimmt für ${retreat ? "Rückzug nach " : ""}${crawlerRooms[target].name}. ${count}/${required} Stimmen.`,
     );
   if (retreat) {
     for (const ally of Calive(s)) Cdamage(s, ally, 2);
@@ -956,9 +999,9 @@ function CideaLegacy(s, p, raw) {
   if (inspect) return Cexamine(s, p, t);
   if (
     /\b(stimm\w* zu|zustimm\w*|ja|bin dabei|einverstanden|folge)\b/.test(t) &&
-    Object.keys(s.votes).length
+    CrouteVotes(s).length
   )
-    return Cmove(s, p, Object.values(s.votes)[0]);
+    return Cagree(s, p);
   if (/geh|betret|weiter|zuruck|verlass|lauf|hinaus/.test(t)) {
     let target = /archiv/.test(t)
       ? "archiv"
@@ -1030,14 +1073,7 @@ function CideaLegacy(s, p, raw) {
     return Cadvance(s, p);
   }
   if (/helf.*auf|wiederbele|aufricht/.test(t) && target) {
-    Cturn(s, p);
-    if (target.hp > 0) Cfail("Diese Figur steht bereits.");
-    target.hp = 3;
-    Clog(
-      s,
-      `${p.alias} hilft ${target.alias} auf: 3 LP. Im Kampf kostet das den Zug.`,
-    );
-    return Cadvance(s, p);
+    return ChelpUp(s, p, target);
   }
   if (
     /angreif|greif.*an|schlag|attack|hau|stich|schiess|feuer.*auf/.test(t) &&
@@ -1243,6 +1279,11 @@ export function crawlerApply(s, id, data, rng = secureD20) {
       "Diese Runde gehört zur früheren Version. Öffnet für den Dungeon-Crawler einen neuen Raum.",
     );
   const p = Cp(s, id);
+  if (data.type === "cancel" && s.pending && (id === s.host || s.pending.id === id)) {
+    const actor = s.pending.actor;
+    s.pending = null;
+    return Clog(s, `${actor}s Wurfvorbereitung wurde abgebrochen. Kein Fokus und kein Zug verbraucht.`);
+  }
   if (data.type === "join") {
     if (p) return;
     if (id === s.host && !s.solo)
@@ -1258,7 +1299,8 @@ export function crawlerApply(s, id, data, rng = secureD20) {
       Cplain(alias) === "spielleitung"
     )
       Cfail("Bitte einen anderen Namen wählen.");
-    s.players.push({ id, alias, classId: null });
+    const catchphrase = String(data.catchphrase ?? "").trim().slice(0, 80);
+    s.players.push({ id, alias, classId: null, catchphrase });
     return;
   }
   if (!p) Cfail("Das Tablet dient nur zur Ansicht.");
@@ -1374,14 +1416,22 @@ export function crawlerApply(s, id, data, rng = secureD20) {
     return;
   }
   if (data.type === "cancel") {
-    if (s.pending?.id !== id)
-      Cfail("Du kannst nur deinen eigenen Wurf abbrechen.");
-    s.pending = null;
-    Clog(
-      s,
-      `${p.alias} bricht die Vorbereitung ab. Kein Fokus und kein Zug verbraucht.`,
-    );
-    return;
+    Cfail("Du hast keinen eigenen offenen Wurf.");
+  }
+  if (data.type === "catchphrase") {
+    if (s.status !== "play" || data.room !== s.room || Cactive(s) || s.pending || !p.hp ||
+        !p.catchphrase || p.catchphraseUsed || p.focus >= CmaxFocus(p))
+      Cfail("Dein Insider ist beim Erkunden einmal verfügbar, wenn dir Fokus fehlt.");
+    p.catchphraseUsed = true;
+    p.focus++;
+    return Clog(s, `${p.alias}: „${p.catchphrase}“ Die Gruft hält kurz inne. ${p.alias} sammelt 1 Fokus.`);
+  }
+  if (["route", "help", "team"].includes(data.type)) {
+    if (s.status !== "play" || data.room !== s.room)
+      Cfail("Die Szene hat sich geändert. Schau auf den aktuellen Stand.");
+    if (data.type === "route") return Cmove(s, p, data.target);
+    if (data.type === "help") return ChelpUp(s, p, Cp(s, data.target));
+    return CguardTeamAction(s, p);
   }
   if (data.type === "talent") {
     if (s.pending) Cfail("Erst den offenen Wurf abschließen.");
@@ -1518,6 +1568,7 @@ export function crawlerView(s, id, code, version) {
           talents: me.talents,
           pet: me.pet,
           damageBonus: me.damageBonus,
+          catchphraseReady: Boolean(me.catchphrase && !me.catchphraseUsed && me.focus < CmaxFocus(me)),
         }
       : null,
     classes: crawlerClasses,
@@ -1526,6 +1577,10 @@ export function crawlerView(s, id, code, version) {
     quest: s.quest,
     messages: s.messages.slice(-100),
     narration: s.narration,
+    tableEvents: s.messages.filter(m => m.who === "Spielleitung" && m.room === s.room &&
+      !/^(?:Am Zug:|Hinweis \d|🎲)/.test(m.text) && m.text !== dungeonHelp).slice(-3),
+    routeVotes: CrouteVotes(s),
+    routeNeeded: Math.floor(Calive(s).length / 2) + 1,
     loot: b?.loot ?? [],
     shop:
       s.room === "kapelle" && s.facts.rest
@@ -1570,6 +1625,9 @@ export function crawlerView(s, id, code, version) {
           },
           stun: combat.stun,
           shield: combat.shield,
+          team: s.room === "wache" && !combat.setupUsed && Calive(s).length >= 2
+            ? { lure: Cp(s, combat.lure)?.alias, canAct: combat.lure !== id }
+            : null,
         }
       : null,
     progress: {
@@ -1606,7 +1664,11 @@ function Cidea(s,p,raw){
  const risk=(effect,name,stat,dc,harm,group=false)=>{if(s.facts[effect])return say('Dieser Weg ist bereits gesichert.');return Cprepare(s,p,{kind:'exploration',effect,name,stat,dc,harm,group,cost:0,success:'Der Mechanismus ist dauerhaft gesichert; der Weg ist offen.',downside:(group?'Jeder stehende Held':'Du')+' verliert '+harm+' LP. Der Weg bleibt gesperrt.'});};
  if(i.kind==='negated')return say('Du führst diese Handlung nicht aus. Beschreibe, was du stattdessen versuchen möchtest.');
  if(i.kind==='question')return say('Du kannst die Umgebung untersuchen, Werkzeuge kombinieren und eigene Versuche beschreiben. Riskante Handlungen erhalten vorab eine Würfelvorschau mit den genauen Folgen.');
- if(i.kind==='agree'&&Object.keys(s.votes).length)return Cmove(s,p,Object.values(s.votes)[0]);
+ if(i.kind==='agree'&&CrouteVotes(s).length)return Cagree(s,p);
+ if(s.room==='tor'&&!s.facts.gate&&/^ich kenn(?:e)? (?:eine|ne) abkurzung[.!]?$/.test(request)){
+  s.facts.gate=true;
+  return say('„Ich kenn ’ne Abkürzung“, sagt das Steingesicht. Es öffnet das Tor. Dahinter: dieselbe Treppe, nur offiziell als Umleitung ausgeschildert.');
+ }
  const paths=dungeonPaths(s,crawlerRooms);
  const destination=paths.find(id=>(dungeonAliases[id]??[]).some(a=>new RegExp('\\b'+a+'\\b').test(t)));
  if(i.kind==='move'||(i.kind==='unknown'&&destination)){

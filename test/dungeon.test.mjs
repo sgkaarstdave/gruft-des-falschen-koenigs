@@ -2,6 +2,65 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {crawlerNewRoom,crawlerApply,crawlerView} from '../crawler.mjs';
 import {interpretDungeonInput} from '../language.mjs';
+
+test('table actions keep competing votes explicit and require two heroes for the fallgitter combo', () => {
+  const s = crawlerNewRoom('tablet');
+  const send = (id, type, details = {}) => crawlerApply(s, id, {type, ...details}, () => 20);
+  const route = (id, target, room = s.room) => send(id, 'route', {target, room});
+  for (const id of ['a', 'b', 'c']) {
+    send(id, 'join', {alias: id, catchphrase: 'Immer der Karte nach'});
+    send(id, 'choose', {classId: 'ritter'});
+  }
+  send('a', 'start');
+  send('a', 'act', {idea: 'Ich kenn eine Abkürzung!'});
+  route('a', 'gabel');
+  assert.equal(crawlerView(s, 'tablet', 'TEST', 1).routeVotes[0].count, 1);
+  route('b', 'gabel');
+  assert.throws(() => route('c', 'gabel', 'tor'), /Szene hat sich geändert/);
+  route('a', 'lager');
+  route('b', 'pilze');
+  send('c', 'act', {idea: 'ja'});
+  assert.equal(s.room, 'gabel');
+  assert.equal(crawlerView(s, 'tablet', 'TEST', 2).routeVotes.length, 2);
+  route('c', 'lager');
+  assert.equal(s.room, 'lager');
+  send('a', 'act', {idea: 'öffne den Rucksack'});
+  route('a', 'gabel');
+  route('b', 'gabel');
+  send('a', 'act', {idea: 'öffne Eichentür'});
+  route('a', 'wache');
+  route('b', 'wache');
+  send('a', 'team', {room: 'wache'});
+  assert.equal(crawlerView(s, 'b', 'TEST', 3).combat.team.lure, 'a');
+  assert.throws(() => send('a', 'team', {room: 'wache'}), /Noch nicht dein Zug/);
+  send('b', 'team', {room: 'wache'});
+  assert.equal(s.pending.dc, 8);
+  assert.throws(() => send('c', 'cancel'), /keinen eigenen offenen Wurf/);
+  send('tablet', 'cancel');
+  assert.equal(s.pending, null);
+  assert.equal(crawlerView(s, 'b', 'TEST', 4).combat.mine, true);
+  send('b', 'team', {room: 'wache'});
+  send('b', 'roll');
+  assert.equal(s.combat.setupUsed, true);
+  assert.equal(s.combat.weaken, 2);
+  assert.match(crawlerView(s, 'tablet', 'TEST', 5).tableEvents.at(-1).text, /Fallgitter/);
+});
+
+test('personal catchphrase is revealed at the table once and needs missing focus', () => {
+  const s = crawlerNewRoom('tablet', true);
+  const send = (type, details) => crawlerApply(s, 'a', {type, ...details});
+  send('join', {alias: 'Alex', catchphrase: 'Das hält bis morgen'});
+  send('choose', {classId: 'ritter'});
+  send('start');
+  const play = () => send('catchphrase', {room: 'tor'});
+  assert.throws(play, /wenn dir Fokus fehlt/);
+  s.players[0].focus = 1;
+  assert.ok(!JSON.stringify(crawlerView(s, 'tablet', 'TEST', 1)).includes('Das hält bis morgen'));
+  play();
+  assert.equal(s.players[0].focus, 2);
+  assert.match(crawlerView(s, 'tablet', 'TEST', 2).tableEvents.at(-1).text, /Das hält bis morgen/);
+  assert.throws(play, /einmal verfügbar/);
+});
 function run(){const s=crawlerNewRoom('tablet',true);const apply=(data,die=20)=>crawlerApply(s,'p',data,()=>die);apply({type:'join',alias:'Melli'});apply({type:'choose',classId:'ritter'});apply({type:'start'});return {s,apply,act:idea=>apply({type:'act',idea}),go:room=>apply({type:'act',idea:'gehe '+room}),roll:die=>apply({type:'roll'},die)};}
 function cave(r){r.act('nehme Messingschlüssel');r.act('spreche mit dem Gesicht');r.go('Kreuzung');assert.equal(r.s.room,'gabel');}
 function supplies(r){r.go('lager');r.act('nehme alles');r.act('öffne den Rucksack');r.act('öffne Vorratskiste');r.act('öffne Eisentruhe');r.act('nehme alles');}

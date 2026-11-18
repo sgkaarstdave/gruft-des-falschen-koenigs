@@ -54,7 +54,7 @@ async function api(code, body) {
     },
   );
   const data = await res.json();
-  if (!res.ok) throw Error(data.error || "Verbindung fehlgeschlagen.");
+  if (!res.ok) throw Object.assign(Error(data.error || "Verbindung fehlgeschlagen."), { status: res.status });
   return data;
 }
 async function action(body, code = state?.code) {
@@ -85,10 +85,23 @@ async function action(body, code = state?.code) {
       }
       state = latest;
     }
-    state = await api(code, {
+    const request = {
       ...body,
       expected: state?.code === code ? state.version : undefined,
-    });
+    };
+    try {
+      state = await api(code, request);
+    } catch (err) {
+      if (body.type !== "route" || err.status !== 409) throw err;
+      const latest = await api(code);
+      if (latest.room.id !== body.room) {
+        state = latest;
+      } else if (Boolean(latest.combat) !== Boolean(state.combat)) {
+        throw err;
+      } else {
+        state = await api(code, { ...request, expected: latest.version });
+      }
+    }
     connection = "";
     save("gruft.room", state.code);
     history.replaceState({}, "", "/?room=" + state.code);
@@ -126,12 +139,12 @@ const button = (text, type, value = "", disabled = false, cls = "") =>
 const bar = (n, max, cls = "") =>
   `<progress class="${cls}" max="${max}" value="${n}">${n}/${max}</progress>`;
 const chip = (t) => `<span class="chip">${esc(t)}</span>`;
-function playGuide(){return `<details class="play-guide"><summary>So spielt ihr · Regeln & Hinweise</summary><div><p><strong>Start:</strong> Tablet: Raum öffnen. Handys: QR-Code scannen, Namen und Klasse wählen. Ein Handy startet die Runde. Allein geht es über „Allein ausprobieren“; die Regeln bleiben gleich.</p><p><strong>Erkunden:</strong> Schau dir die Kulisse an und beschreibe im Chat, was du tun willst: etwa „Ich untersuche die Truhe“. Du brauchst keine exakten Befehle. Untersuchen kostet keinen Zug. Freie Gegenstände musst du aufnehmen, damit du sie im Rucksack hast.</p><p><strong>Dein Held:</strong> Unter Held findest du Werte und Talentpunkte, unter Rucksack Beute und Ausrüstung, unter Skills deine Fähigkeiten. Die Karte wächst beim Erkunden.</p><p><strong>Gemeinsam gehen:</strong> Nenne einen sichtbaren Nachbarraum im Chat. Die Mehrheit der stehenden Helden muss zustimmen, zum Beispiel mit „Ich stimme zu“. Solo genügt deine Stimme.</p><p><strong>Kampf & Würfel:</strong> Ihr handelt reihum. Lies vorher den angekündigten Monsterangriff. Riskante Aktionen zeigen Chance, Kosten und Folgen. Erst „Jetzt würfeln“ führt den Versuch aus; vorher ist Abbrechen kostenlos. Verteidigen gibt Schutz und Fokus. Heilen und Aufhelfen kosten im Kampf einen Zug.</p><p><strong>Vorräte:</strong> Heilung und Fokus sind begrenzt. Es gibt kein automatisches Vollheilen nach jedem Kampf. Liegt die ganze Gruppe am Boden, endet die Expedition.</p><p><strong>Festgefahren?</strong> Schreib „Hinweis“ für einen sanften Tipp zum aktuellen Raum. „Noch ein Hinweis“ wird konkreter. Hinweise sind freiwillig, kosten keinen Zug und führen keine Aktion aus. „Hilfe“ erklärt die Regeln im Chat.</p><p><strong>Speichern:</strong> Eure Runde wird automatisch gespeichert. Mit demselben Browser und Gerät kannst du über „Letzte Runde fortsetzen“ zurückkehren.</p></div></details>`;}
+function playGuide(){return `<details class="play-guide"><summary>So spielt ihr · Regeln & Hinweise</summary><div><p><strong>Start:</strong> Tablet: Raum öffnen. Handys: QR-Code scannen, Namen und Klasse wählen. Ein Handy startet die Runde. Allein geht es über „Allein ausprobieren“; die Regeln bleiben gleich.</p><p><strong>Erkunden:</strong> Schau dir die Kulisse an und beschreibe im Chat, was du tun willst: etwa „Ich untersuche die Truhe“. Du brauchst keine exakten Befehle. Untersuchen kostet keinen Zug. Freie Gegenstände musst du aufnehmen, damit du sie im Rucksack hast.</p><p><strong>Dein Held:</strong> Unter Held findest du Werte und Talentpunkte, unter Rucksack Beute und Ausrüstung, unter Skills deine Fähigkeiten. Die Karte wächst beim Erkunden.</p><p><strong>Gemeinsam gehen:</strong> Sprecht euch am Tisch ab und tippt auf euer Ziel. Die Mehrheit der stehenden Helden entscheidet. Solo genügt deine Stimme.</p><p><strong>Kampf & Würfel:</strong> Ihr handelt reihum. Lies vorher den angekündigten Monsterangriff. Riskante Aktionen zeigen Chance, Kosten und Folgen. Erst „Jetzt würfeln“ führt den Versuch aus; vorher ist Abbrechen kostenlos. Verteidigen gibt Schutz und Fokus. Heilen und Aufhelfen kosten im Kampf einen Zug.</p><p><strong>Vorräte:</strong> Heilung und Fokus sind begrenzt. Es gibt kein automatisches Vollheilen nach jedem Kampf. Liegt die ganze Gruppe am Boden, endet die Expedition.</p><p><strong>Festgefahren?</strong> Schreib „Hinweis“ für einen sanften Tipp zum aktuellen Raum. „Noch ein Hinweis“ wird konkreter. Hinweise sind freiwillig, kosten keinen Zug und führen keine Aktion aus. „Hilfe“ erklärt die Regeln im Chat.</p><p><strong>Speichern:</strong> Eure Runde wird automatisch gespeichert. Mit demselben Browser und Gerät kannst du über „Letzte Runde fortsetzen“ zurückkehren.</p></div></details>`;}
 function home() {
   return `<section class="landing"><div class="eyebrow">Dungeon-Crawler · 2–6 Freunde · online</div><h1>Die Gruft des<br><em>falschen Königs.</em></h1><p>Wählt eure Klasse. Plündert die Gruft.<br>Überlebt Günthers Bürokratie und eure eigenen Skills.</p><div class="controls">${button("Auf dem Tablet öffnen", "create")}${button("Allein ausprobieren", "solo", "", "", "secondary")}</div><div class="landing-tags">${chip("13 Räume & Geheimgänge")}${chip("6 Klassen")}${chip("Monster & Beute")}${chip("Virtueller W20")}${chip("Charakterentwicklung")}</div>${playGuide()}</section><div class="lobby-grid"><section class="card"><h2>Mit dem Handy beitreten</h2>${joinForm(params.get("join") || "")}</section><section class="card"><h2>Ein Raum. Eure Truppe.</h2><p>Das Tablet zeigt den Dungeon. Auf dem Handy findest du deinen Helden, Rucksack, Skills, die wachsende Karte und den gemeinsamen Chat.</p><p>Riskante Aktionen zeigen vor dem virtuellen Wurf ihre Erfolgschance und Folgen. Ihr entscheidet, ob ihr das riskiert.</p>${read("gruft.room") ? button("Letzte Runde fortsetzen", "resume", "", "", "secondary") : ""}</section></div>`;
 }
 function joinForm(code) {
-  return `<form id="join"><label for="code">Raumcode</label><input id="code" name="code" value="${esc(code)}" maxlength="6" required placeholder="ABC234" autocapitalize="characters"><label for="alias">Dein Heldenname</label><input id="alias" name="alias" maxlength="24" required autocomplete="nickname" placeholder="Dave von der traurigen Panade"><button>Beitreten</button></form>`;
+  return `<form id="join"><label for="code">Raumcode</label><input id="code" name="code" value="${esc(code)}" maxlength="6" required placeholder="ABC234" autocapitalize="characters"><label for="alias">Dein Heldenname</label><input id="alias" name="alias" maxlength="24" required autocomplete="nickname" placeholder="Dave von der traurigen Panade"><label for="catchphrase">Dein typischer Spruch (optional)</label><input id="catchphrase" name="catchphrase" maxlength="80" placeholder="Das wird man am Tisch wiedererkennen"><button>Beitreten</button></form>`;
 }
 function partyCards() {
   return `<div class="party-cards">${state.players
@@ -172,9 +185,64 @@ function dungeonPlan(compact=false){
  const m=state.map;if(!m)return '';
  const point=id=>m.nodes.find(n=>n.id===id);
  const x=n=>45+n.x*80,y=n=>40+n.y*70;
- return `<section class="dungeon-plan ${compact?'compact-map':''}"><h2>Dungeonkarte · ${m.visited}/${m.total}</h2><p class="map-seals">${state.objectives.map(o=>`${o.done?'●':'○'} ${esc(o.name)}`).join(' · ')}</p><svg viewBox="0 0 670 290" role="img" aria-label="Entdeckte Räume und verbundene Gänge. Der aktuelle Raum ist gold markiert.">${m.edges.map(e=>{const a=point(e.from),b=point(e.to);return `<line x1="${x(a)}" y1="${y(a)}" x2="${x(b)}" y2="${y(b)}" class="${e.locked?'locked-path':'open-path'}"/>`;}).join('')}${m.nodes.map(n=>`<g class="map-node ${n.current?'current':n.visited?'visited':'unknown'}"><circle cx="${x(n)}" cy="${y(n)}" r="15"/><text x="${x(n)}" y="${y(n)+5}">${n.current?'◆':n.visited?(n.clear?'✓':'!'):'?'}</text><text class="map-label" x="${x(n)}" y="${y(n)+31}">${esc(n.visited?n.id:'?')}</text></g>`).join('')}</svg><p>◆ Hier seid ihr · ? unerforscht · gestrichelt: gesperrt</p>${compact?'':`<ol class="map-rooms">${m.nodes.filter(n=>n.visited).map(n=>`<li>${esc(n.name)}${n.current?' · aktueller Raum':''}</li>`).join('')}</ol><h3>Wege aus diesem Raum</h3>${state.room.paths.map(p=>`<p><strong>${esc(p.name)}</strong>${p.locked?`<br>${esc(p.locked)}`:' · zugänglich'}</p>`).join('')}<p>Raumwechsel sprecht ihr im Chat ab. Die Mehrheit entscheidet.</p>`}</section>`;
+ return `<section class="dungeon-plan ${compact?'compact-map':''}"><h2>Dungeonkarte · ${m.visited}/${m.total}</h2><p class="map-seals">${state.objectives.map(o=>`${o.done?'●':'○'} ${esc(o.name)}`).join(' · ')}</p><svg viewBox="0 0 670 290" role="img" aria-label="Entdeckte Räume und verbundene Gänge. Der aktuelle Raum ist gold markiert.">${m.edges.map(e=>{const a=point(e.from),b=point(e.to);return `<line x1="${x(a)}" y1="${y(a)}" x2="${x(b)}" y2="${y(b)}" class="${e.locked?'locked-path':'open-path'}"/>`;}).join('')}${m.nodes.map(n=>`<g class="map-node ${n.current?'current':n.visited?'visited':'unknown'}"><circle cx="${x(n)}" cy="${y(n)}" r="15"/><text x="${x(n)}" y="${y(n)+5}">${n.current?'◆':n.visited?(n.clear?'✓':'!'):'?'}</text><text class="map-label" x="${x(n)}" y="${y(n)+31}">${esc(n.visited?n.id:'?')}</text></g>`).join('')}</svg><p>◆ Hier seid ihr · ? unerforscht · gestrichelt: gesperrt</p>${compact?'':`<ol class="map-rooms">${m.nodes.filter(n=>n.visited).map(n=>`<li>${esc(n.name)}${n.current?' · aktueller Raum':''}</li>`).join('')}</ol><h3>Wege aus diesem Raum</h3>${state.room.paths.map(p=>`<p><strong>${esc(p.name)}</strong>${p.locked?`<br>${esc(p.locked)}`:' · zugänglich'}</p>`).join('')}<p>Stimmt im Chat-Tab per Knopfdruck für euren nächsten Raum.</p>`}</section>`;
 }
-function tablet(){return `<div class="table-main"><section class="stage"><img class="room-art" src="/art/${esc(state.room.image)}.webp" alt="${esc(state.room.name)} mit ${esc(state.room.objects.join(', '))}"><div class="stage-heading"><span class="eyebrow">Die Kündigung des Königs · Raum ${state.map?.visited??state.explored.length}/${state.map?.total??13}</span><h1>${esc(state.room.name)}</h1></div></section><aside class="table-sidebar">${monsterPanel(true)}${diceResult()}${dungeonPlan(true)}<div class="table-party">${partyCards()}</div></aside></div><section class="narration" aria-live="polite"><p>${esc(state.narration)}</p>${state.pending?`<div class="pending-line">${esc(state.pending.actor)} bereitet ${esc(state.pending.name)} vor · ${state.pending.chance}% Erfolg</div>`:''}</section><footer class="table-footer">${state.status==='won'?'Krone geborgen!':state.status==='lost'?'Expedition gescheitert.':'Handys sind am Zug'} · Raum ${esc(state.code)} · Sichtbar: ${esc(state.room.objects.join(' · '))}</footer>`;}
+function tablet(){return `<div class="table-main"><section class="stage"><img class="room-art" src="/art/${esc(state.room.image)}.webp" alt="${esc(state.room.name)} mit ${esc(state.room.objects.join(', '))}"><div class="stage-heading"><span class="eyebrow">Die Kündigung des Königs · Raum ${state.map?.visited??state.explored.length}/${state.map?.total??13}</span><h1>${esc(state.room.name)}</h1></div></section><aside class="table-sidebar">${monsterPanel(true)}${diceResult()}${dungeonPlan(true)}<div class="table-party">${partyCards()}</div></aside></div>${tableStory()}<footer class="table-footer">${state.status==='won'?'Krone geborgen!':state.status==='lost'?'Expedition gescheitert.':'Handys sind am Zug'} · Raum ${esc(state.code)} · Sichtbar: ${esc(state.room.objects.join(' · '))}</footer>`;}
+function routePanel(table = false) {
+  const votes = state.routeVotes ?? [];
+  if (table && !votes.length) return "";
+  const paths = state.room.paths.filter(path => !state.combat || path.visited);
+  const heading = state.combat ? "Rückzug · kostet 2 LP" : "Wohin gehen wir?";
+  if (!paths.length) return "";
+  return `<section class="table-actions"><strong>${heading}</strong>
+    <div class="action-buttons">${paths.filter(path => !table || votes.some(vote => vote.id === path.id)).map(path => {
+      const count = votes.find(vote => vote.id === path.id)?.count;
+      const label = path.name + (count ? ` · ${count}/${state.routeNeeded}` : "");
+      return table ? `<span>${esc(label)}</span>` : button(label, "route", path.id, Boolean(state.pending), "secondary");
+    }).join("")}</div></section>`;
+}
+
+function quickActions() {
+  if (state.status !== "play" || state.me.down) return "";
+  const combat = state.combat;
+  const active = !state.pending && (!combat || combat.mine);
+  const down = state.players.filter(player => player.down && !player.self);
+  const actions = [];
+  if (!combat && state.me.catchphraseReady)
+    actions.push(button("Insider ausspielen · +1 Fokus", "catchphrase", "", !active, "secondary"));
+  if (state.room.id === "tor" && !state.progress.gate) {
+    actions.push(button("Gong untersuchen", "scene", "Ich untersuche den Gong", !active, "secondary"));
+    actions.push(button("Steingesicht ansprechen", "scene", "Ich spreche mit dem Steingesicht", !active, "secondary"));
+  }
+  if (combat) {
+    actions.push(button("Angreifen", "attack", "", !active));
+    actions.push(button("Verteidigen", "defend", "", !active, "secondary"));
+  }
+  if (combat?.team?.canAct) {
+    actions.push(button(combat.team.lure ? "Winde ziehen" : "Günther ablenken", "team", "", !active, "secondary"));
+  }
+  for (const player of down) {
+    actions.push(button(`${player.alias} aufhelfen`, "help", player.id, !active, "secondary"));
+  }
+  return `${actions.length ? `<div class="action-buttons quick-actions">${actions.join("")}</div>` : ""}
+    ${!combat || state.routeVotes?.length ? routePanel() : `<details class="room-context"><summary>Rückzug beraten</summary>${routePanel()}</details>`}`;
+}
+
+function tableStory() {
+  const objective = state.status === "won" ? "Krone geborgen!" :
+    state.status === "lost" ? "Expedition gescheitert." :
+    state.progress.crown ? "Ziel · Bringt die Krone zum Ausgang" :
+    state.room.id === "tor" && !state.progress.gate ? "Ziel · Öffnet das Tor" :
+    state.objectives.every(seal => seal.done) ? "Ziel · Holt die Krone aus dem Thronsaal" :
+    "Ziel · Sammelt die drei Siegel für den Thronsaal";
+  return `<section class="table-story" aria-live="polite">
+    <strong>${objective}</strong>${routePanel(true)}
+    <div class="table-events">${(state.tableEvents ?? []).toReversed().map(event => `<p>${esc(event.text)}</p>`).join("")}</div>
+    ${state.pending ? `<div class="pending-line">${esc(state.pending.actor)} · ${esc(state.pending.name)} · ${state.pending.chance}% Erfolg
+      ${state.host ? `<details><summary>Wurf hängt?</summary>${button("Wurf abbrechen", "cancel", "", false, "secondary")}</details>` : ""}</div>` : ""}
+  </section>`;
+}
+
 function targetSelect() {
   return `<label>Ziel<select name="target" aria-label="Ziel wählen">${state.players.map((p) => `<option value="${p.id}" ${targetId === p.id || (!targetId && p.self) ? "selected" : ""}>${esc(p.alias)}${p.self ? " (du)" : ""} · ${p.hp}/${p.maxHp} LP</option>`).join("")}</select></label>`;
 }
@@ -263,7 +331,7 @@ function pendingPanel() {
 function chat() {
   const p = state.me;
   const finished = ["won", "lost"].includes(state.status);
-  return `${monsterPanel()}${diceResult()}<section id="chat" class="chat" role="log" aria-label="Gemeinsamer Spielverlauf">${state.messages.map((m) => `<article class="chat-message ${m.who === "Spielleitung" ? "narrator" : "player"}"><div class="speaker">${esc(m.who)}</div><p>${esc(m.text)}</p></article>`).join("")}</section>${state.pending ? pendingPanel() : finished ? `<section class="composer"><strong>${state.status === "won" ? "Die Krone gehört euch." : "Die Gruft hat gewonnen."}</strong><p>Charaktere und Rucksäcke bleiben in ihren Tabs sichtbar.</p>${button("Neue Expedition", "exit")}</section>` : `<form id="idea" class="composer"><label for="phrase">${state.combat ? (state.combat.mine ? "Du bist am Zug" : "Aktiv: " + esc(state.combat.turn) + " · Untersuchen geht trotzdem") : "Was tust du, " + esc(p.alias) + "?"}</label><div class="send-row"><textarea id="phrase" name="idea" maxlength="500" required rows="2" placeholder="Ich untersuche die Kettenwinde …">${esc(draft)}</textarea><button>Senden</button></div></form>`}`;
+  return `${monsterPanel()}${diceResult()}${quickActions()}<section id="chat" class="chat" role="log" aria-label="Gemeinsamer Spielverlauf">${state.messages.map((m) => `<article class="chat-message ${m.who === "Spielleitung" ? "narrator" : "player"}"><div class="speaker">${esc(m.who)}</div><p>${esc(m.text)}</p></article>`).join("")}</section>${state.pending ? pendingPanel() : finished ? `<section class="composer"><strong>${state.status === "won" ? "Die Krone gehört euch." : "Die Gruft hat gewonnen."}</strong><p>Charaktere und Rucksäcke bleiben in ihren Tabs sichtbar.</p>${button("Neue Expedition", "exit")}</section>` : `<form id="idea" class="composer"><label for="phrase">${state.combat ? (state.combat.mine ? "Du bist am Zug" : "Aktiv: " + esc(state.combat.turn) + " · Untersuchen geht trotzdem") : "Was tust du, " + esc(p.alias) + "?"}</label><div class="send-row"><textarea id="phrase" name="idea" maxlength="500" required rows="2" placeholder="Ich untersuche die Kettenwinde …">${esc(draft)}</textarea><button>Senden</button></div></form>`}`;
 }
 function phone() {
   const p = state.me;
@@ -339,7 +407,7 @@ app.addEventListener("submit", (e) => {
     d = Object.fromEntries(new FormData(f));
   if (f.id === "join")
     return action(
-      { type: "join", alias: d.alias },
+      { type: "join", alias: d.alias, catchphrase: d.catchphrase },
       d.code.trim().toUpperCase(),
     );
   if (f.id === "idea") return action({ type: "act", idea: d.idea });
@@ -407,6 +475,9 @@ app.addEventListener("click", async (e) => {
     render();
     return;
   }
+  if (type === "scene") return action({ type: "act", idea: value });
+  if (["route", "help", "team", "catchphrase"].includes(type))
+    return action({ type, target: value, room: state.room.id });
   const field = {
     choose: "classId",
     talent: "talent",

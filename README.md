@@ -4,6 +4,10 @@
 
 Tablet: Raum öffnen. Handys: QR-Code scannen, Namen eingeben, Klasse wählen. Danach startet ein Handy die Expedition. 2–6 Spieler; zum Ausprobieren gibt es einen Solo-Modus. Internet genügt, ein gemeinsames WLAN oder Rechner ist nicht nötig.
 
+Sprecht Wege am Tisch ab und stimmt auf den Handys per Knopfdruck ab. Ziel, laufende Abstimmung und die letzten Ereignisse stehen auf dem Tablet. Im Kampf könnt ihr Angriffe, Verteidigung und Aufhelfen direkt auswählen. Bei Günther kann ein Held ihn unters Fallgitter locken, damit ein zweiter die Winde zieht.
+
+Beim Beitritt kann jeder einen eigenen Insider-Spruch hinterlegen. Wenn Fokus fehlt, lässt sich der Spruch einmal beim Erkunden ausspielen. Er erscheint auf dem Tablet und bringt der Figur einen Fokuspunkt zurück.
+
 ## Die Kündigung des Königs
 
 Eine komplette Expedition mit 13 illustrierten Dungeon-Räumen, fünf möglichen Monsterbegegnungen, persönlichen Charakterblättern, Beute und einem Boss. Das Skelettamt wird von Günther von Klammer-zurück geleitet. Klaudia Kassensturz ist eine Truhe mit Bissvertrag. Im Thronsaal wartet Dieter, der Kündigungsteppich, mit König Horst dem Vorläufigen als unbezahltem Reiter.

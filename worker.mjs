@@ -84,6 +84,8 @@ async function api(req, db) {
       "talent",
       "loot",
       "attack",
+      "team",
+      "catchphrase",
       "defend",
       "unequip",
       "buy",

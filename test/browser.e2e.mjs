@@ -61,6 +61,10 @@ try {
   await a.bringToFront();
   await a.getByRole("button", { name: "In die Gruft!" }).click();
   await a.locator("#phrase").waitFor();
+  async function at(p, room) {
+    await p.bringToFront();
+    await p.locator(".phone-top").getByText(room).waitFor();
+  }
   async function act(p, text, contains) {
     await p.bringToFront();
     await p.locator("#phrase").fill(text);
@@ -73,18 +77,25 @@ try {
       contains,
     );
   }
-  await act(a, "Ich beschwere mich beim Gesicht", "öffnet das Tor");
-  await act(a, "Ich gehe zur Kreuzung", "Stimmen");
-  await act(b, "Ich stimme zu", "Weggabelung");
+  await a.getByRole("button", { name: "Steingesicht ansprechen" }).click();
+  await a.getByRole("button", { name: "Steingesicht ansprechen" }).waitFor({ state: "detached" });
+  await a.getByRole("button", { name: /^Weggabelung/ }).click();
+  await tablet.locator(".table-actions").getByText(/Weggabelung.*1\/2/).waitFor();
+  await b.bringToFront();
+  await b.getByRole("button", { name: /^Weggabelung/ }).click();
+  await tablet.locator(".stage h1").filter({ hasText: /Weggabelung/ }).waitFor();
+  await at(a, /Weggabelung/);
   await act(a, "Ich gehe zum Lager", "Stimmen");
   await act(b, "Ich stimme zu", "Vorratsgrotte");
+  await at(a, /Vorratsgrotte/);
   await act(a, "Ich öffne den Rucksack", "Eisenschlüssel");
   await act(a, "Ich gehe zur Kreuzung", "Stimmen");
   await act(b, "Ich stimme zu", "Weggabelung");
+  await at(a, /Weggabelung/);
   await act(a, "Ich öffne die Eichentür", "öffnet die Eichentür");
   await act(a, "Ich gehe zur Wache", "Stimmen");
   await act(b, "Ich stimme zu", "Jetzt: Melli");
-  await a.bringToFront();
+  await at(a, /Skelettamt/);
   await a
     .getByRole("navigation", { name: "Heldenansicht" })
     .getByRole("button", { name: "Skills", exact: true })
@@ -95,6 +106,13 @@ try {
   assert.match(await a.locator(".dice-plan").innerText(), /35%/);
   assert.match(await a.locator(".risk-copy").innerText(), /Jeder/);
   assert.equal(await a.locator("input[type=number]").count(), 0);
+  await tablet.bringToFront();
+  await tablet.getByText("Wurf hängt?", { exact: true }).click();
+  await tablet.getByRole("button", { name: "Wurf abbrechen" }).click();
+  await a.bringToFront();
+  await a.locator(".dice-plan").waitFor({ state: "detached" });
+  await a.locator('[data-skill="furz"] button').click();
+  await a.locator(".dice-plan").waitFor();
   await a.screenshot({ path: "work/risiko.webp", fullPage: true });
   await a
     .getByRole("button", { name: "🎲 Jetzt würfeln", exact: true })
@@ -108,7 +126,8 @@ try {
   await a.getByRole("button", { name: "Chat", exact: true }).click();
   await b.bringToFront();
   await b.locator("#phrase").waitFor();
-  await act(b, "Ich verteidige mich", "Am Zug: Melli");
+  await b.getByRole("button", { name: "Verteidigen", exact: true }).click();
+  await tablet.locator(".monster-panel").getByText(/Melli am Zug/).waitFor();
   await tablet.bringToFront();
   await tablet.locator(".monster-panel").waitFor();
   await tablet.waitForFunction(
