@@ -1,4 +1,4 @@
-import { newRoom, apply, view } from "./chapter.mjs";
+import { crawlerNewRoom, crawlerApply, crawlerView } from "./crawler.mjs";
 import {
   page,
   style,
@@ -35,12 +35,12 @@ async function api(req, db) {
     const d = await req.json();
     for (let i = 0; i < 4; i++) {
       const key = roomCode();
-      const state = newRoom(id, d.solo === true);
+      const state = crawlerNewRoom(id, d.solo === true);
       const r = await db
         .prepare("INSERT OR IGNORE INTO rooms (code,state) VALUES (?,?)")
         .bind(key, JSON.stringify(state))
         .run();
-      if (r.meta.changes) return json(view(state, id, key, 0), 201);
+      if (r.meta.changes) return json(crawlerView(state, id, key, 0), 201);
     }
     return json(
       { error: "Kein freier Raumcode. Versuch es noch einmal." },
@@ -59,7 +59,7 @@ async function api(req, db) {
   if (req.method === "GET") {
     if (id !== state.host && !state.players.some((p) => p.id === id))
       return json({ error: "Tritt dem Raum zuerst bei." }, 403);
-    return json(view(state, id, code, row.version));
+    return json(crawlerView(state, id, code, row.version));
   }
   if (req.method !== "POST") return json({ error: "Unbekannte Anfrage." }, 405);
   const data = await req.json();
@@ -79,6 +79,14 @@ async function api(req, db) {
       "cancel",
       "ghost",
       "skip",
+      "choose",
+      "start",
+      "talent",
+      "loot",
+      "attack",
+      "defend",
+      "unequip",
+      "buy",
     ].includes(data.type)
   )
     return json(
@@ -89,7 +97,7 @@ async function api(req, db) {
       409,
     );
   try {
-    apply(state, id, data);
+    crawlerApply(state, id, data);
   } catch (error) {
     return json({ error: error.message }, 400);
   }
@@ -107,7 +115,7 @@ async function api(req, db) {
       },
       409,
     );
-  return json(view(state, id, code, row.version + 1));
+  return json(crawlerView(state, id, code, row.version + 1));
 }
 const headers = {
   "Content-Security-Policy":

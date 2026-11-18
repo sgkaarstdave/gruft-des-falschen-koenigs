@@ -21,7 +21,7 @@ const qrSource =
 const client = qrSource + (await readFile("client.js", "utf8"));
 const roomImages = Object.fromEntries(
   await Promise.all(
-    ["tor", "archiv", "kapelle"].map(async (name) => [
+    ["tor", "wache", "archiv", "kapelle", "thron"].map(async (name) => [
       name + ".webp",
       (await readFile("art/" + name + ".webp")).toString("base64"),
     ]),
@@ -37,7 +37,7 @@ const assets = {
 };
 await mkdir("dist/server", { recursive: true });
 const sources = await Promise.all(
-  ["chapter.mjs", "worker.mjs"].map((path) => readFile(path, "utf8")),
+  ["crawler.mjs", "worker.mjs"].map((path) => readFile(path, "utf8")),
 );
 const bundled = sources
   .map((code) =>

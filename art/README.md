@@ -1,9 +1,11 @@
-# Raumillustrationen
+# Kulissen der Expedition
 
-Drei zusammenhängende, für dieses Kapitel mit dem ChatGPT-Bildwerkzeug erzeugte Einzelkulissen. Keine Higgsfield-Generierung und keine nachträglich aufgesetzten Spielobjekte.
+Fünf für dieses Spiel mit dem ChatGPT-Bildwerkzeug erzeugte Einzelillustrationen. Alle relevanten Objekte sind natürlich in die Szene eingebaut; keine aufgesetzten Objekt-Overlays.
 
-- `tor.webp`: Tor mit Steingesicht, gedämpftem Messinggong, trockenem Becken und Schlüssel.
-- `archiv.webp`: Eichentruhe mit Alarmglocke und Schloss, offenes Gästebuch mit Wachssiegel, Kronentür.
-- `kapelle.webp`: Geisterhochzeit mit leeren Tellern, Krone auf Sockel, Buffetglocke und Ausgang ins Morgenlicht.
+- tor.webp: Steingesicht, Messinggong, trockenes Becken mit Schlüssel.
+- wache.webp: Günther, Stempelhammer, Schreibtisch, Flasche, Fallgitter und Kettenwinde.
+- archiv.webp: Archivtruhe, kleine Glocke, Gästebuch mit Wachssiegel und Kronentür.
+- kapelle.webp: Geisterhochzeit, Buffetglocke, Teller und Krönungssockel.
+- thron.webp: Horst, Dieter der lebende Teppich, echte Krone, Kronleuchter und Kettenwinde.
 
-Die Illustrationen zeigen den Raum beim ersten Betreten. Veränderungen werden im gemeinsamen Spielstand und in der Erzählung festgehalten.
+Die Bilder zeigen die Ausgangssituation. Die laufende Erzählung, LP, Beute und Questzustände zeigen, was sich verändert hat.
