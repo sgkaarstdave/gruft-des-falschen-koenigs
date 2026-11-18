@@ -1,5 +1,9 @@
 # Die Gruft des falschen Königs
 
+**[Direkt online spielen – ohne Installation](https://gruft-des-falschen-koenigs.furrybeetle.chatgpt.site)**
+
+Auf dem Tablet öffnen, Raum erstellen, mit den Handys den QR-Code scannen. Die Anleitung zum lokalen WLAN-Server unten ist optional.
+
 Ein kooperatives Dungeon-Abenteuer für **2–6 Spieler**, etwa 15–30 Minuten. Das erste Kapitel **„Die letzte Einladung“** führt durch drei illustrierte Räume mit mehreren Lösungswegen und unterschiedlichen Enden.
 
 Das **Tablet zeigt nur die Szene und die aktuelle Erzählung**. Auf den **Handys schreiben alle in einen gemeinsamen Chat**, was sie tun. Untersuchen, Gegenstände aufnehmen, Schlösser öffnen, mit Geistern verhandeln und weitergehen funktionieren über freie Sätze. Es gibt keine Aktionsmenüs. Für riskante Versuche braucht ihr einen echten W20.
