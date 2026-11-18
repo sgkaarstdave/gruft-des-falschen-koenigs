@@ -6,12 +6,23 @@
 <meta name="theme-color" content="#101a18">
 <title>Die Gruft des falschen Königs</title>
 <meta name="description" content="Ein kooperatives Würfelabenteuer für 3–6 Freunde.">
+<script>
+  if (location.hostname === "sgkaarstdave.github.io") {
+    const game = new URL('https://gruft-des-falschen-koenigs.furrybeetle.chatgpt.site/');
+    const params = new URLSearchParams(location.search);
+    for (const key of ['join', 'room']) {
+      const code = params.get(key);
+      if (code && /^[a-z0-9]{6}$/i.test(code)) game.searchParams.set(key, code.toUpperCase());
+    }
+    location.replace(game.href);
+    }
+</script>
 <link rel="stylesheet" href="/style.css">
 <script type="module" src="/app.js"></script>
 </head>
 <body>
 <header class="top"><a class="brand" href="/"><span aria-hidden="true">♛</span> Die Gruft</a><span class="top-note" id="status">3–6 Spieler · 1 echter W20</span></header>
-<main id="app"><p>Die Gruft öffnet sich …</p></main>
+<main id="app"><p>Die Gruft öffnet sich … <a href="https://gruft-des-falschen-koenigs.furrybeetle.chatgpt.site/">Direkt zum Spiel</a></p></main>
 <div id="message" class="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>
