@@ -998,3 +998,9 @@ select {
 .compact-map h2 {font-size:.92rem;}
 .compact-map .map-seals {font-size:.69rem;}
 @media(max-width:450px){.phone-nav button{font-size:.78rem;padding:12px 3px;}.dungeon-plan{padding:12px;}}
+
+.play-guide {background:#172321;border:1px solid #46564d;border-radius:10px;margin:12px 0;padding:12px 16px;color:#dddcca;}
+.play-guide summary {cursor:pointer;color:#e3c583;font-weight:600;}
+.play-guide p {font-size:.9rem;line-height:1.65;}
+.play-guide>div {max-height:55vh;overflow-y:auto;padding-right:10px;}
+.phone>.play-guide {margin:8px 12px;}

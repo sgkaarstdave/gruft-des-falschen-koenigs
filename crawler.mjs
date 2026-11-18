@@ -1,3 +1,4 @@
+import { dungeonHelp, dungeonHint } from './hints.mjs';
 import { interpretDungeonInput, dungeonNormalize } from './language.mjs';
 import { dungeonPatches, dungeonItems, dungeonAliases, dungeonPaths, dungeonGate, dungeonMap } from './dungeon.mjs';
 // Crawler v2. All resources, turns, loot and dice are authoritative server state.
@@ -1582,6 +1583,14 @@ export function crawlerView(s, id, code, version) {
 
 // Intent interpretation is separate from authoritative state changes.
 function Cidea(s,p,raw){
+ const request=dungeonNormalize(raw);
+ if(/^(?:hilfe|help|anleitung|spielregeln|regeln|wie (?:geht|spielt|funktioniert|spiel ich|spielen wir))\b/.test(request))return Clog(s,dungeonHelp);
+ if(/\b(?:hinweis|tipp|tip|hint)\b/.test(request)||/^(?:ich|wir) (?:komme|kommen) nicht weiter/.test(request)){
+  if(/\b(?:kein|keinen|keine|nicht|ohne)\b/.test(request)&&!/nicht weiter/.test(request))return Clog(s,'Kein Hinweis. Ihr erkundet auf eigene Faust weiter.');
+  s.hints??={};s.hints[p.id]??={};const level=Math.min(2,(s.hints[p.id][s.room]??0)+1);s.hints[p.id][s.room]=level;
+  return Clog(s,`Hinweis ${level}/2 · `+dungeonHint(s,level)+(level===1?' Für einen konkreteren Tipp schreib „noch ein Hinweis“.':' Das ist die konkretere Hinweisstufe; die Handlung entscheidet ihr selbst.'));
+ }
+
  s.language ??= {};
  const memory=s.language[p.id]??{};
  const objects=Croom(s).objects.map(name=>({id:name,name,aliases:[name.split(' ').at(-1)]}));

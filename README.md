@@ -12,6 +12,10 @@ Das Tablet zeigt immer den aktuellen Raum, die Erzählung, Gruppen-LP und im Kam
 
 Auf jedem Handy gibt es fünf Tabs: **Chat, Held, Rucksack, Skills und Karte**. Weltaktionen bleiben frei formulierte Sätze. Beispielsweise „Ich untersuche die Winde“, „Ich greife Günther an“, „Ich verteidige mich“ oder „Ich helfe Melli auf“. Inventar und Skills sind zusätzlich direkt bedienbar. Bei unklaren Absichten fragt die lokale regelbasierte Spielleitung nach. Sie ist kein unbegrenzt improvisierendes Sprachmodell und benötigt keinen API-Schlüssel.
 
+## Anleitung und freiwillige Hinweise
+
+„So spielt ihr · Regeln & Hinweise“ steht auf der Startseite und während der Expedition auf dem Handy bereit. Im Chat erklärt „Hilfe“ die Regeln. „Hinweis“ gibt einen sanften Tipp zur aktuellen Situation, ein weiterer Hinweis wird konkreter. Es gibt zwei Stufen; keine automatische Lösung, keinen Ressourcenverbrauch und keinen verbrauchten Kampfzug. Bereits gelöste Mechanismen und aktive Kämpfe werden berücksichtigt. Die Hinweise können auch in bestehenden Runden genutzt werden.
+
 ## Verzweigter Höhlendungeon
 
 Die Weggabelung verbindet Vorratsgrotte, Pilzhöhle, Brücke und verriegeltes Skelettamt. Eine reparierbare Schmiede, eine Quelle, ein Speerkorridor, ein Geheimgang und das bewachte Ossuarium bieten zusätzliche Wege und Entscheidungen. Die Karte zeigt nur besuchte Räume und ihre angrenzenden Gänge. Verborgene Abkürzungen erscheinen erst nach ihrer Entdeckung.

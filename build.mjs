@@ -37,7 +37,7 @@ const assets = {
 };
 await mkdir("dist/server", { recursive: true });
 const sources = await Promise.all(
-  ["language.mjs", "dungeon.mjs", "crawler.mjs", "worker.mjs"].map((path) => readFile(path, "utf8")),
+  ["hints.mjs", "language.mjs", "dungeon.mjs", "crawler.mjs", "worker.mjs"].map((path) => readFile(path, "utf8")),
 );
 const bundled = sources
   .map((code) =>
