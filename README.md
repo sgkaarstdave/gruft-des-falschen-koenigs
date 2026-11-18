@@ -6,13 +6,19 @@ Tablet: Raum öffnen. Handys: QR-Code scannen, Namen eingeben, Klasse wählen. D
 
 ## Die Kündigung des Königs
 
-Eine komplette Expedition mit fünf illustrierten Dungeon-Räumen, drei möglichen Monsterbegegnungen, persönlichen Charakterblättern, Beute und einem Boss. Das Skelettamt wird von Günther von Klammer-zurück geleitet. Klaudia Kassensturz ist eine Truhe mit Bissvertrag. Im Thronsaal wartet Dieter, der Kündigungsteppich, mit König Horst dem Vorläufigen als unbezahltem Reiter.
+Eine komplette Expedition mit 13 illustrierten Dungeon-Räumen, fünf möglichen Monsterbegegnungen, persönlichen Charakterblättern, Beute und einem Boss. Das Skelettamt wird von Günther von Klammer-zurück geleitet. Klaudia Kassensturz ist eine Truhe mit Bissvertrag. Im Thronsaal wartet Dieter, der Kündigungsteppich, mit König Horst dem Vorläufigen als unbezahltem Reiter.
 
 Das Tablet zeigt immer den aktuellen Raum, die Erzählung, Gruppen-LP und im Kampf das Monster samt angekündigtem Angriff. Die Dinge in der Kulisse gehören zu den Spielregeln: Gong, Becken, Fallgitter, Flasche, Kettenwinden, Archivtruhe, Gästebuch, Buffetglocke und Kronleuchter können untersucht oder genutzt werden. Illustrationen zeigen die Ausgangsszene; Status und Erzählung dokumentieren Änderungen.
 
-Auf jedem Handy gibt es vier Tabs: **Chat, Held, Rucksack und Skills**. Weltaktionen bleiben frei formulierte Sätze. Beispielsweise „Ich untersuche die Winde“, „Ich greife Günther an“, „Ich verteidige mich“ oder „Ich helfe Melli auf“. Inventar und Skills sind zusätzlich direkt bedienbar. Bei unklaren Absichten fragt die lokale regelbasierte Spielleitung nach. Sie ist kein unbegrenzt improvisierendes Sprachmodell und benötigt keinen API-Schlüssel.
+Auf jedem Handy gibt es fünf Tabs: **Chat, Held, Rucksack, Skills und Karte**. Weltaktionen bleiben frei formulierte Sätze. Beispielsweise „Ich untersuche die Winde“, „Ich greife Günther an“, „Ich verteidige mich“ oder „Ich helfe Melli auf“. Inventar und Skills sind zusätzlich direkt bedienbar. Bei unklaren Absichten fragt die lokale regelbasierte Spielleitung nach. Sie ist kein unbegrenzt improvisierendes Sprachmodell und benötigt keinen API-Schlüssel.
 
-![Große Tablet-Kulisse mit Kampf- und Gruppenanzeige](docs/tablet-crawler.jpg)
+## Verzweigter Höhlendungeon
+
+Die Weggabelung verbindet Vorratsgrotte, Pilzhöhle, Brücke und verriegeltes Skelettamt. Eine reparierbare Schmiede, eine Quelle, ein Speerkorridor, ein Geheimgang und das bewachte Ossuarium bieten zusätzliche Wege und Entscheidungen. Die Karte zeigt nur besuchte Räume und ihre angrenzenden Gänge. Verborgene Abkürzungen erscheinen erst nach ihrer Entdeckung.
+
+Zum Endgegner benötigt ihr Sonne, Mond und Grab: drei Siegel aus verschiedenen Begegnungen. Brösel der Ungewaschene lässt sich mit einem tatsächlich vorhandenen Nugget besänftigen; Erwin von Knochenfrist besteht auf seiner Hellebarde. Werkzeuge liegen sichtbar in den Räumen. Seil und Brett werden beim Brückenbau verbaut, ein Zahnrad repariert den Blasebalg. Werkzeuge lassen sich zwischen Spielern weitergeben. Behälter, Schmiede-Upgrades und Quellen vergeben ihren Nutzen nur einmal. Eine riskante Alternative kündigt Zielwert und Schaden vor dem virtuellen Wurf an.
+
+**Freitext:** „Angriff“, „Attacke“, „ich greife an“, „hau drauf“ und häufige Tippfehler werden als dieselbe Absicht erkannt. Untersuchen, Nehmen, Öffnen, Verteidigen und Bewegung haben eigene Synonyme. Nach „Truhe öffnen“ kann die Spielleitung zwischen zwei Truhen nachfragen; „die eiserne“ beantwortet diese Rückfrage. Verneinungen und hypothetische Fragen führen keine Handlung aus. Diese Erkennung bleibt regelbasiert: Sie interpretiert viele Formulierungen, improvisiert aber keine beliebigen neuen Spielregeln.
 
 ## Charaktere und Entwicklung
 
@@ -30,8 +36,6 @@ Erfahrung gibt es für abgeschlossene Begegnungen, auch für eine friedliche Lö
 Beute liegt zunächst im Raum. Der erste erfolgreiche Aufnehmer bekommt sie in seinen persönlichen Rucksack. Waffen und Rüstung können zwischen Kämpfen gewechselt, nicht ausgerüstete Gegenstände an Freunde weitergegeben werden. Questgegenstände werden gemeinsam geführt. Gold ist in der Kapelle nach der Rast gegen Vorräte eintauschbar.
 
 ## Virtueller Würfel und faire Risiken
-
-![Würfelplan mit Erfolgschance und Gruppenrisiko](docs/wuerfelplan.jpg)
 
 Der Server würfelt den W20 mit `crypto.getRandomValues` und Rejection Sampling. Ein vom Handy mitgesendeter Würfelwert wird ignoriert. Bei einer natürlichen 1 misslingt der Versuch immer; eine 20 gelingt kritisch und verursacht bei Angriffen +3 Schaden.
 
@@ -60,4 +64,4 @@ Online ist kein Setup nötig. Für die optionale lokale Version: Node.js 24+ und
 - `npm run build`: Worker mit allen Kulissen und dem Client erzeugen.
 - `npm install`, `npx playwright install chromium`, `npm run test:browser`: optionaler Browser-Test für Tablet, zwei getrennte Handy-Sitzungen, Klassenwahl, persönliche Tabs, Skill-Vorschau und echten virtuellen Würfel. Dieser Test hängt nicht von einem bestimmten Würfelergebnis ab.
 
-`crawler.mjs` enthält die aktuelle Spielwelt und Regeln. `chapter.mjs`, `game.mjs`, `world.mjs` und `improv.mjs` bewahren die früheren Versionen samt Tests. Alte Online-Runden werden erkannt und nicht überschrieben; für den Crawler muss eine neue Runde erstellt werden. **Die Weltdateien enthalten Spoiler.**
+`crawler.mjs`, `dungeon.mjs` und `language.mjs` enthalten die aktuelle Spielwelt, Regeln und Absichtserkennung. `crawler-v2.mjs` archiviert den früheren linearen Crawler. `chapter.mjs`, `game.mjs`, `world.mjs` und `improv.mjs` bewahren die früheren Versionen samt Tests. Alte Online-Runden werden erkannt und nicht überschrieben; für den Crawler muss eine neue Runde erstellt werden. **Die Weltdateien enthalten Spoiler.**

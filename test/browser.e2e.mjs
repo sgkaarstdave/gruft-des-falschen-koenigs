@@ -74,6 +74,14 @@ try {
     );
   }
   await act(a, "Ich beschwere mich beim Gesicht", "öffnet das Tor");
+  await act(a, "Ich gehe zur Kreuzung", "Stimmen");
+  await act(b, "Ich stimme zu", "Weggabelung");
+  await act(a, "Ich gehe zum Lager", "Stimmen");
+  await act(b, "Ich stimme zu", "Vorratsgrotte");
+  await act(a, "Ich öffne den Rucksack", "Eisenschlüssel");
+  await act(a, "Ich gehe zur Kreuzung", "Stimmen");
+  await act(b, "Ich stimme zu", "Weggabelung");
+  await act(a, "Ich öffne die Eichentür", "öffnet die Eichentür");
   await act(a, "Ich gehe zur Wache", "Stimmen");
   await act(b, "Ich stimme zu", "Jetzt: Melli");
   await a.bringToFront();

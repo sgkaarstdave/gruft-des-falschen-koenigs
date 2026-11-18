@@ -5,7 +5,7 @@ import {
   crawlerApply,
   crawlerView,
   secureD20,
-} from "../crawler.mjs";
+} from "../crawler-v2.mjs";
 function party(classes = ["ritter", "tinte"]) {
   const s = crawlerNewRoom("tablet", classes.length === 1);
   classes.forEach((c, i) => {

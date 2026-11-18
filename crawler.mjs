@@ -1,3 +1,5 @@
+import { interpretDungeonInput, dungeonNormalize } from './language.mjs';
+import { dungeonPatches, dungeonItems, dungeonAliases, dungeonPaths, dungeonGate, dungeonMap } from './dungeon.mjs';
 // Crawler v2. All resources, turns, loot and dice are authoritative server state.
 export const crawlerClasses = {
   ritter: {
@@ -392,6 +394,8 @@ export const crawlerRooms = {
       "Mit der echten Krone stolpert ihr ans Tageslicht. Hinter euch eröffnet Günthers Nachfolger bereits ein Verfahren wegen unbefugten Sieges.",
   },
 };
+for (const [id, patch] of Object.entries(dungeonPatches)) crawlerRooms[id] = {...crawlerRooms[id], ...patch};
+Object.assign(crawlerItems,dungeonItems);
 const Cplain = (t) =>
   String(t ?? "")
     .toLowerCase()
@@ -436,7 +440,7 @@ export function secureD20() {
 }
 export function crawlerNewRoom(host, solo = false) {
   return {
-    crawler: 2,
+    crawler: 3,
     host,
     solo,
     status: "lobby",
@@ -489,6 +493,8 @@ function Creward(s) {
       Clog(s, `${p.alias} kommt nach dem Kampf mit 1 LP wieder zu sich.`);
     }
   }
+  const seal = {wache:"Sonnensiegel",pilze:"Mondsiegel",grabkammer:"Grabessiegel"}[s.room];
+  if (seal) { Cquest(s,seal); Clog(s,"Ihr bergt das " + seal + ". Es gehört der ganzen Truppe."); }
   const loot =
     s.room === "wache"
       ? [
@@ -775,15 +781,18 @@ function Cuse(s, p, item, target) {
   Cadvance(s, p);
 }
 function Center(s, room) {
+  const revisit = Boolean(s.boards[room]);
+  s.previous = s.room;
   s.room = room;
+  s.language = {};
   s.votes = {};
   s.focus = {};
   s.boards[room] ??= {
     clear: !crawlerRooms[room].enemy,
-    loot: [],
+    loot: [...(crawlerRooms[room].loot ?? [])],
     rewarded: false,
   };
-  Clog(s, crawlerRooms[room].name + " — " + crawlerRooms[room].story);
+  Clog(s, crawlerRooms[room].name + " — " + (revisit ? "Ihr kehrt zurück. Bereits geöffnete Behälter und Wege bleiben offen; besiegte Gegner kommen nicht wieder. Am Boden: " + (Cboard(s).loot.join(", ") || "keine freie Beute") + ". Sichtbar: " + crawlerRooms[room].objects.join(", ") : crawlerRooms[room].story));
   if (room === "ausgang") {
     s.status = "won";
     Clog(
@@ -792,7 +801,7 @@ function Center(s, room) {
     );
     return;
   }
-  if (room === "wache" || room === "thron") {
+  if (room === "wache" || room === "thron" || room === "grabkammer") {
     if (!Cboard(s).clear) {
       CstartFight(s);
       if (room === "thron" && s.facts.blessed) {
@@ -806,12 +815,12 @@ function Center(s, room) {
   }
 }
 function Cmove(s, p, target) {
-  if (!crawlerRooms[target] || !Croom(s).paths.includes(target))
+  if (!crawlerRooms[target] || !dungeonPaths(s,crawlerRooms).includes(target))
     return Clog(
       s,
       "Von hier führt kein direkter Weg dorthin. Sichtbare Wege: " +
-        Croom(s)
-          .paths.map((k) => crawlerRooms[k].name)
+        dungeonPaths(s,crawlerRooms)
+          .map((k) => crawlerRooms[k].name)
           .join(", ") +
         ".",
     );
@@ -826,11 +835,8 @@ function Cmove(s, p, target) {
       s,
       "Die Kronentür ist versiegelt. Das Gästebuch und sein Königssiegel gehören zum Verschluss.",
     );
-  if (target === "thron" && !s.facts.rest)
-    return Clog(
-      s,
-      "Die Braut lässt euch erst weiter, wenn ihr eure Kräfte am Rastplatz gesammelt habt. Im Chat könnt ihr gemeinsam rasten.",
-    );
+  const locked = dungeonGate(s,s.room,target);
+  if (locked) return Clog(s,locked);
   if (target === "ausgang" && !s.facts.crown)
     return Clog(
       s,
@@ -923,7 +929,7 @@ function Cexamine(s, p, t) {
           : "Hier liegen keine weiteren Beutestücke."),
   );
 }
-function Cidea(s, p, raw) {
+function CideaLegacy(s, p, raw) {
   let t = Cplain(raw);
   const inspect =
     /untersuch|schau|pruf|seh.*an|betracht|inspiz|such|les|was |wo |hinseh/.test(
@@ -1081,7 +1087,7 @@ function Cidea(s, p, raw) {
       s.facts.gate = true;
       return Clog(
         s,
-        "Der Gong weckt das Gesicht. Das Tor öffnet sich zum Amt für ungeklärte Restlebenszeit.",
+        "Der Gong weckt das Gesicht. Das Tor öffnet sich zur Höhlenkreuzung.",
       );
     }
     if (/gesicht|beschwer/.test(t) && /red|sprech|sag|frag|beschwer/.test(t)) {
@@ -1216,7 +1222,7 @@ function Cidea(s, p, raw) {
       }
       return Clog(
         s,
-        "Sichere Rast: Alle LP und Fokus sind wieder voll. Dieser Rastplatz ist jetzt verbraucht. Der Weg zum Thronsaal ist frei.",
+        "Sichere Rast: Alle LP und Fokus sind wieder voll. Dieser Rastplatz ist jetzt verbraucht. Für die Thronsaaltür braucht ihr weiterhin die drei Siegel.",
       );
     }
   }
@@ -1231,7 +1237,7 @@ function Cidea(s, p, raw) {
   );
 }
 export function crawlerApply(s, id, data, rng = secureD20) {
-  if (s.crawler !== 2)
+  if (s.crawler !== 3)
     Cfail(
       "Diese Runde gehört zur früheren Version. Öffnet für den Dungeon-Crawler einen neuen Raum.",
     );
@@ -1323,6 +1329,12 @@ export function crawlerApply(s, id, data, rng = secureD20) {
       s,
       `🎲 ${p.alias}: ${die} + ${q.bonus} = ${die + q.bonus} gegen ${q.dc}. ${die === 20 ? "KRITISCHER ERFOLG!" : die === 1 ? "PATZER!" : success ? "Erfolg!" : "Fehlschlag."}`,
     );
+    if (q.kind === "exploration") {
+      if (success) { s.facts[q.effect] = true; Clog(s,q.success); }
+      else { for (const ally of q.group ? Calive(s) : [p]) Cdamage(s,ally,q.harm); Clog(s,q.downside); }
+      if (!Calive(s).length) { s.status="lost"; Clog(s,"Die Expedition endet an der Falle. Eure Charaktere bleiben sichtbar."); }
+      return;
+    }
     if (success) {
       if (q.kind === "tame") {
         p.pet = true;
@@ -1449,7 +1461,7 @@ export function crawlerApply(s, id, data, rng = secureD20) {
   Cidea(s, p, raw);
 }
 export function crawlerView(s, id, code, version) {
-  if (s.crawler !== 2) return { legacy: true, code, version };
+  if (s.crawler !== 3) return { legacy: true, code, version };
   const me = Cp(s, id);
   const combat = Cactive(s) ? s.combat : null;
   const b = Cboard(s);
@@ -1472,7 +1484,7 @@ export function crawlerView(s, id, code, version) {
       ).length * 5
     : null;
   return {
-    crawler: 2,
+    crawler: 3,
     code,
     version,
     solo: s.solo,
@@ -1483,7 +1495,8 @@ export function crawlerView(s, id, code, version) {
       name: room.name,
       image: room.image,
       objects: room.objects,
-      paths: room.paths.map((k) => ({
+      paths: dungeonPaths(s,crawlerRooms).map((k) => ({
+        locked: dungeonGate(s,s.room,k),
         id: k,
         name: crawlerRooms[k].name,
         visited: Boolean(s.boards[k]),
@@ -1517,6 +1530,8 @@ export function crawlerView(s, id, code, version) {
       s.room === "kapelle" && s.facts.rest
         ? { Nugget: 8, Fokusbrause: 10, "Goldener Nugget": 14 }
         : null,
+    map: dungeonMap(s,crawlerRooms),
+    objectives: ["Sonnensiegel","Mondsiegel","Grabessiegel"].map(name=>({name,done:s.quest.includes(name)})),
     explored: Object.keys(s.boards).map((k) => ({
       id: k,
       name: crawlerRooms[k].name,
@@ -1563,4 +1578,133 @@ export function crawlerView(s, id, code, version) {
       crown: Boolean(s.facts.crown),
     },
   };
+}
+
+// Intent interpretation is separate from authoritative state changes.
+function Cidea(s,p,raw){
+ s.language ??= {};
+ const memory=s.language[p.id]??{};
+ const objects=Croom(s).objects.map(name=>({id:name,name,aliases:[name.split(' ').at(-1)]}));
+ let i=interpretDungeonInput(raw,{objects,lastTarget:s.focus[p.id],lastIntent:memory.ask?memory:null});
+ let t=i.text;
+ if(i.target)s.focus[p.id]=i.target;
+ if(!i.target&&s.focus[p.id]&&/\b(sie|ihn|es|das|daran|damit)\b/.test(t))t+=' '+dungeonNormalize(s.focus[p.id]);
+ s.language[p.id]={kind:i.kind,ask:false};
+ const say=text=>Clog(s,text), b=Cboard(s), has=item=>p.bag.includes(item), action=!['inspect','question','negated'].includes(i.kind);
+ if(!p.hp&&action)return say('Du liegst am Boden. Ein anderer Held muss dich heilen oder dir aufhelfen.');
+ const ask=(text,kind=i.kind)=>{s.language[p.id]={kind,ask:true};return say(text);};
+ const once=(key,items,text)=>{if(b[key])return say('Schon erledigt. Hier entsteht keine neue Beute.');b[key]=true;b.loot.push(...items);return say(text+' Am Boden: '+items.join(', ')+'.');};
+ const risk=(effect,name,stat,dc,harm,group=false)=>{if(s.facts[effect])return say('Dieser Weg ist bereits gesichert.');return Cprepare(s,p,{kind:'exploration',effect,name,stat,dc,harm,group,cost:0,success:'Der Mechanismus ist dauerhaft gesichert; der Weg ist offen.',downside:(group?'Jeder stehende Held':'Du')+' verliert '+harm+' LP. Der Weg bleibt gesperrt.'});};
+ if(i.kind==='negated')return say('Du führst diese Handlung nicht aus. Beschreibe, was du stattdessen versuchen möchtest.');
+ if(i.kind==='question')return say('Du kannst die Umgebung untersuchen, Werkzeuge kombinieren und eigene Versuche beschreiben. Riskante Handlungen erhalten vorab eine Würfelvorschau mit den genauen Folgen.');
+ if(i.kind==='agree'&&Object.keys(s.votes).length)return Cmove(s,p,Object.values(s.votes)[0]);
+ const paths=dungeonPaths(s,crawlerRooms);
+ const destination=paths.find(id=>(dungeonAliases[id]??[]).some(a=>new RegExp('\\b'+a+'\\b').test(t)));
+ if(i.kind==='move'||(i.kind==='unknown'&&destination)){
+  let to=destination;
+  if(!to&&/zuruck/.test(t)&&paths.includes(s.previous))to=s.previous;
+  if(!to&&/weiter|rein/.test(t)){const unseen=paths.filter(k=>!s.boards[k]);if(unseen.length===1)to=unseen[0];else if(paths.length===1)to=paths[0];}
+  return to?Cmove(s,p,to):say('Wohin? Von hier führen Wege nach: '+paths.map(k=>crawlerRooms[k].name).join(' · ')+'. Du kannst den Raumnamen schreiben.');
+ }
+ if(i.kind==='inspect'){
+  if(s.room==='archiv'&&/noten|deckel|melodie|truhe/.test(t))b.notes=true;
+  if(s.room==='lager')return say(/rucksack|tasche/.test(t)?'Aus dem hängenden Rucksack ragt ein Eisenschlüssel. Du kannst den Rucksack öffnen oder den Schlüssel herausnehmen.':/eisen|schloss/.test(t)?(b.iron?'Die Eisentruhe steht offen und ist leer. Ihr könnt den Inhalt nicht ein zweites Mal finden.':'Die Eisentruhe hat ein Messingschloss. Der Schlüssel vom Eingang passt. Die Vorratskiste daneben ist unverschlossen.'):/rune|riss/.test(t)?'Eine unvollständige Mondrune verläuft im Mauerriss. Runenkreide könnte die verborgenen Linien verbinden.':'Auf der Werkbank: '+(b.loot.join(', ')||'keine freie Beute mehr')+'. Dazu Vorratskiste, verschlossene Eisentruhe und hängender Rucksack.');
+  if(s.room==='falle')return say(s.facts.trapSafe?'Die Druckplatte ist dauerhaft gesichert. Ihr könnt zur Grabkammer.':'Die Druckplatte zieht über das Gegengewicht die Speere heraus. Ein Brett mit Stein kann sie sicher blockieren. Mit Brecheisen lässt sich der Hebel riskant verkeilen (W20 + Geschick gegen 14, sonst 3 LP Gruppenschaden).');
+  if(s.room==='gabel')return say('Die Wege führen zu Vorratsgrotte, Brücke, Pilzhöhle und Skelettamt. '+(s.facts.oakDoor?'Die Eichentür steht offen.':'Die Eichentür zum Amt ist verriegelt.')+' Am Boden: '+(b.loot.join(', ')||'keine freie Beute')+'.');
+  if(s.room==='bruecke')return say(s.facts.bridge?'Der gesicherte Übergang zur Schmiede bleibt begehbar. Die verbauten Materialien sind nicht mehr im Rucksack.':Croom(s).story);
+  if(s.room==='schmiede')return say((s.facts.forge?'Die Schmiede läuft. Jeder Held kann einmal für 8 Gold seine Waffe verbessern.':'Dem Blasebalg fehlt ein Zahnrad. Ein Ersatzteil könnte in der Eisentruhe liegen.')+' '+(s.facts.forgeHatch?'Die Eisenluke zum Archiv steht offen.':'Die Eisenluke besitzt hier einen einfachen Riegel.'));
+  if(s.room==='quelle')return say(s.facts.springUsed?'Die Quelle hat ihre einmalige Kulanz bereits vergeben. Die Wasserkanäle und das Ventil bleiben zugänglich.':Croom(s).story);
+  if(['pilze','grabkammer'].includes(s.room))return say(b.clear?'Der Wächter ist bezwungen. Das Siegel liegt bereits bei euren gemeinsamen Questgegenständen. Am Boden: '+(b.loot.join(', ')||'keine freie Beute')+'.':Croom(s).story+' '+Croom(s).enemy.weakness);
+  return CideaLegacy(s,p,'untersuche '+t);
+ }
+ // Visible loose items can be collected once, including tools not in the old vocabulary.
+ if(i.kind==='take'&&b.loot.length&&!/messing|rucksack|siegel/.test(t)){
+  if(Cactive(s))return say('Erst die Begegnung klären; im Kampf wird keine Bodenbeute eingesammelt.');
+  const found=i.all?[...b.loot]:b.loot.filter(name=>t.includes(Cplain(name)));
+  if(found.length){for(const name of found){Cadd(p,name);b.loot.splice(b.loot.indexOf(name),1);}return say(p.alias+' nimmt: '+found.join(', ')+'.');}
+ }
+ // Shared seal locks cannot be bypassed by generic "open door" parsing.
+ if(['kapelle','grabkammer'].includes(s.room)&&/siegel|mulde|throntur|dreisiegel|tur/.test(t)&&action&&!Cactive(s)){
+  const missing=['Sonnensiegel','Mondsiegel','Grabessiegel'].filter(x=>!s.quest.includes(x));
+  if(missing.length)return say('Die Dreisiegeltür bleibt zu. Es fehlen: '+missing.join(', ')+'.');
+  s.facts.throneDoor=true;return say('Sonne, Mond und Grab rasten ein. Die Dreisiegeltür zum Thronsaal ist jetzt offen.');
+ }
+ if(s.room==='lager'&&action){
+  if(/rucksack|tasche|eisenschlussel/.test(t)){if(b.key)return say('Der Rucksack ist leer; der Eisenschlüssel liegt bereits bei euren gemeinsamen Questgegenständen.');b.key=true;Cquest(s,'Eisenschlüssel');return say('Im hängenden Rucksack findet ihr den Eisenschlüssel für die Eichentür an der Weggabelung.');}
+  if(/rune|riss|kreide/.test(t)&&i.kind!=='take'){
+   if(!has('Runenkreide'))return say('Du brauchst Runenkreide im eigenen Rucksack. Auf der Werkbank lag welche.');
+   s.facts.shortcut=true;return say('Die nachgezogene Mondrune öffnet einen schmalen Geheimgang zum Speerkorridor. Er bleibt auf eurer Karte sichtbar.');
+  }
+  if(/truhe|kiste|eisern|vorrat/.test(t)&&['open','force','use'].includes(i.kind)){
+   if(!/eisen|eisern|vorrats|holz|einfache/.test(t))return ask('Welche meinst du: die einfache Vorratskiste oder die verschlossene Eisentruhe?','open');
+   if(/eisen|eisern/.test(t)){
+    if(!s.quest.includes('Messingschlüssel'))return say('Die Eisentruhe ist verschlossen. Das Messingschloss passt zum Schlüssel am Eingang.');
+    return once('iron',['Zahnrad','Bademantel der Unantastbarkeit'],'Du öffnest die Eisentruhe. Ein Zahnrad passt vermutlich in den Blasebalg.');
+   }
+   return once('supplies',['Nugget','Nugget','Fokusbrause'],'Die Vorratskiste ist offen.');
+  }
+ }
+ if(s.room==='gabel'&&/eichen|tur|schlussel|brecheisen/.test(t)&&action){
+  if(s.facts.oakDoor)return say('Die Eichentür ist bereits offen. Dahinter liegt das Skelettamt.');
+  if(s.quest.includes('Eisenschlüssel')){s.facts.oakDoor=true;return say('Der Eisenschlüssel öffnet die Eichentür zum Skelettamt.');}
+  if(has('Brecheisen'))return risk('oakDoor','Eichentür aufhebeln',0,14,3);
+  return say('Die Eichentür ist verriegelt. Suche einen Eisenschlüssel oder hole ein Brecheisen aus der Vorratsgrotte.');
+ }
+ if(s.room==='bruecke'&&action&&/bruck|seil|brett|plank|haken|spring|sprung|repar|bau|sicher/.test(t)){
+  if(s.facts.bridge)return say('Der Übergang ist bereits gesichert und bleibt offen.');
+  if(has('Seil')&&has('Brett')){Cremove(p,'Seil');Cremove(p,'Brett');s.facts.bridge=true;return say('Du verbaust Seil und Brett am Eisenhaken. Die ganze Truppe kann die Brücke jetzt sicher zur Schmiede überqueren.');}
+  if(/spring|sprung/.test(t))return risk('bridge','Riskanten Übergang erklettern',1,15,4,true);
+  return say('Für die sichere Reparatur brauchst du Seil UND Brett im eigenen Rucksack. Alternativ könnt ihr einen riskanten Übergang versuchen: Bei Fehlschlag verliert jeder 4 LP.');
+ }
+ if(s.room==='schmiede'&&action){
+  if(/luke|riegel|tur/.test(t)){s.facts.forgeHatch=true;return say('Du schiebst den Riegel der Eisenluke zurück. Der Weg zum Archiv ist dauerhaft offen.');}
+  if(/zahnrad|blasebalg|repar|ofen/.test(t)){
+   if(s.facts.forge)return say('Die Schmiede läuft bereits. Du kannst für 8 Gold deine Waffe verbessern.');
+   if(!has('Zahnrad'))return say('Das Zahnrad fehlt. Die Eisentruhe in der Vorratsgrotte könnte ein Ersatzteil enthalten.');
+   Cremove(p,'Zahnrad');s.facts.forge=true;return say('Das Zahnrad greift, der Ofen erwacht. Jeder Held kann hier einmal für 8 Gold seine Waffe dauerhaft um +1 Schaden verbessern.');
+  }
+  if(/verbesser|schmied|waffe|hammer|amboss/.test(t)){
+   b.upgrades??=[];if(b.upgrades.includes(p.id))return say('Deine einmalige Verbesserung ist schon geschmiedet.');
+   if(!s.facts.forge)return say('Erst den Blasebalg mit einem Zahnrad reparieren.');
+   if(p.gold<8)return say('Die Verbesserung kostet 8 Gold. Du hast '+p.gold+'.');
+   p.gold-=8;p.damageBonus++;b.upgrades.push(p.id);return say('Deine Waffe erhält dauerhaft +1 Schaden. Der Amboss quittiert mit „Klong, du Otto“.');
+  }
+ }
+ if(s.room==='pilze'&&!b.clear&&action&&/futter|futtere|nugget|fress|gib|geb|reich/.test(t)&&!Cactive(s)){
+  if(!has('Nugget'))return say('Brösel verlangt ein echtes Nugget aus deinem Rucksack. Erfundenes Essen zählt nicht.');
+  Cremove(p,'Nugget');say('Brösel verschlingt dein Nugget und räumt schnaufend das Mondsiegel frei. Ein Kampf ist nicht nötig.');return Creward(s);
+ }
+ if(s.room==='pilze'&&!b.clear&&!Cactive(s)&&(i.kind==='attack'||(i.kind==='take'&&/siegel/.test(t)))){CstartFight(s);return say('Brösel verteidigt sein Siegel. Der Kampf beginnt; achtet auf Zugfolge und angekündigten Angriff.');}
+ if(s.room==='quelle'&&action){
+  if(/ventil|kanal|dreh/.test(t)){s.facts.water=true;return say('Das Ventil spült Staub aus der Rille im Speerkorridor. Der Mechanismus ist dort nun leichter zugänglich.');}
+  if(s.facts.springUsed)return say('Die einmalige Kulanz ist aufgebraucht. Die Quelle gibt keine weitere Heilung oder Fokus.');
+  if(!/heil|leben|\blp\b|fokus|konzentration/.test(t))return ask('Einmal für die ganze Gruppe: Heilung (+6 LP) oder Fokus (+2)? Schreib deine Wahl.','use');
+  s.facts.springUsed=true;const focus=/fokus|konzentration/.test(t);for(const ally of s.players){if(focus)ally.focus=Math.min(CmaxFocus(ally),ally.focus+2);else if(ally.hp>0)ally.hp=Math.min(ally.maxHp,ally.hp+6);}
+  return say(focus?'Alle erhalten bis zu 2 Fokus. Die Quelle ist verbraucht.':'Alle stehenden Helden heilen bis zu 6 LP. Die Quelle ist verbraucht.');
+ }
+ if(s.room==='falle'&&action){
+  if(/truhe|kiste/.test(t)&&['open','force','use'].includes(i.kind))return once('silver',['Goldener Nugget','Fokusbrause'],'Die silberne Truhe in der sicheren Nische öffnet sich.');
+  if(/rune|kreide/.test(t)){if(!has('Runenkreide'))return say('Dazu brauchst du Runenkreide.');s.facts.shortcut=true;return say('Die Mondrune öffnet die Abkürzung zur Vorratsgrotte.');}
+  if(/platte|falle|hebel|gegengewicht|brett|stein|speer|entscharf|verkeil/.test(t)){
+   if(s.facts.trapSafe)return say('Die Druckplatte ist schon gesichert. Der Weg zur Grabkammer bleibt frei.');
+   if(has('Brett')&&has('Stein')){Cremove(p,'Brett');Cremove(p,'Stein');s.facts.trapSafe=true;return say('Brett und Stein blockieren das Gegengewicht dauerhaft. Die Speere bleiben eingezogen.');}
+   if(!has('Brecheisen'))return say('Sicher geht es mit Brett und Stein. Für einen riskanten Hebelversuch brauchst du ein Brecheisen.');
+   return risk('trapSafe','Speermechanismus verkeilen',1,s.facts.water?11:14,3,true);
+  }
+ }
+ if(s.room==='archiv'&&/luke/.test(t)&&action){if(!has('Brecheisen'))return say('Die Luke klemmt. Ein Brecheisen hilft; von der Schmiedeseite lässt sie sich entriegeln.');s.facts.forgeHatch=true;return say('Du hebelst die Luke auf. Der Weg zur Schmiede bleibt offen.');}
+ if(s.room==='archiv'&&/ruckwart|umgekehrt/.test(t)&&/summ|sing|pfeif|melodie|noten/.test(t)&&!b.notes&&!b.inspected)return say('Ihr kennt die Noten noch nicht. Untersucht erst den Truhendeckel; bloßes Raten öffnet Klaudias Bissvertrag nicht.');
+ if(Cactive(s)&&((s.room==='grabkammer'&&/kette|raucher|schale|schild.*klemm/.test(t))||(s.room==='pilze'&&/pilz.*(?:werf|wirf)|(?:werf|wirf).*pilz/.test(t)))){
+  if(s.combat.setupUsed)return say('Diesen Raumvorteil habt ihr in dieser Begegnung schon genutzt.');
+  return Cprepare(s,p,{kind:'environment',name:'Umgebung gegen den Wächter nutzen',stat:1,dc:13,cost:0,power:6+2*s.players.length,success:(6+2*s.players.length)+' Schaden und 2 weniger Monsterschaden in dieser Runde.',downside:'Kein Vorteil. Dein Zug ist verbraucht.'});
+ }
+ // Skill names and environmental targets retain priority over generic combat verbs.
+ const namedSkill=Object.values(crawlerSkills).some(sk=>t.includes(Cplain(sk.name)))||/furz|wolken.?schlag|snooze|pfannenfinale|zahm|suppe|zapfhahn|sonnenbrand|rauchpause|deckel drauf|korperkontakt|aufersteh/.test(t);
+ const environment=/winde|kette|fallgitter|flasche|scharnier|kronleuchter|gong/.test(t);
+ if(i.kind==='attack'&&!namedSkill&&!environment)return Cactive(s)?Cattack(s,p):say('Hier steht gerade kein angreifendes Monster. Du kannst einen sichtbaren Gegenstand als Ziel nennen.');
+ if(i.kind==='defend')return CideaLegacy(s,p,'verteidigen');
+ if(i.kind==='rest')return CideaLegacy(s,p,'rasten');
+ if(i.kind==='open')t='öffne '+t;
+ if(i.kind==='take')t='nehme '+t;
+ return CideaLegacy(s,p,t);
 }

@@ -978,3 +978,23 @@ select {
 }
 /* Scene first: combat, dice and party share a compact side column. */
 .table-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,2.4fr) minmax(260px,1fr);gap:14px}.table-sidebar{min-height:0;display:flex;flex-direction:column;gap:12px;overflow:auto}.table-sidebar .monster-panel{flex-shrink:0;padding:14px}.table-sidebar .monster-title h2{font-size:22px}.table-sidebar .monster-title{gap:8px}.table-sidebar .monster-title b{font-size:21px}.table-sidebar .intent{margin-top:8px;padding:8px}.table-sidebar .table-party .party-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.table-sidebar .party-mini{min-width:0;display:block}.table-sidebar .party-mini small{font-size:10px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.table-sidebar .mini-hp{width:100%;text-align:left}.table-sidebar .roll-result{padding:9px;font-size:10px}.table-sidebar .die-face{width:34px;height:34px;font-size:22px}.table-mode .stage h1{font-size:clamp(22px,2.1vw,32px)}.table-mode .narration{max-width:none;width:100%;padding:0;font-size:clamp(16px,1.5vw,23px)}@media(max-width:650px){.table-main{grid-template-columns:1fr}.table-sidebar{display:none}}
+
+/* Discoverable dungeon map; navigation remains a group decision in chat. */
+.phone-nav {grid-template-columns:repeat(5,minmax(0,1fr));}
+.dungeon-plan {padding:18px; border:1px solid #524631; border-radius:14px; background:#151a18;}
+.dungeon-plan h2 {font-size:1.1rem;margin:0 0 12px;}
+.dungeon-plan svg {width:100%;height:auto;display:block;overflow:visible;}
+.dungeon-plan p {font-size:.85rem;color:#bfc6b9;line-height:1.5;}
+.dungeon-plan line {stroke:#758c80;stroke-width:4;}
+.dungeon-plan .locked-path {stroke:#b68a51;stroke-dasharray:7 5;}
+.map-node circle {fill:#263e35;stroke:#879c8c;stroke-width:2;}
+.map-node.current circle {fill:#d8ad60;stroke:#ffe4a4;stroke-width:3;}
+.map-node.unknown circle {fill:#171c1a;stroke-dasharray:3 3;}
+.map-node text {fill:#eee7d4;text-anchor:middle;font-size:15px;font-weight:700;}
+.map-node.current text {fill:#141811;}
+.map-node text.map-label {fill:#c8cbbf;font-size:12px;font-weight:400;}
+.map-rooms {padding-left:22px;line-height:1.8;}
+.compact-map {padding:12px;}
+.compact-map h2 {font-size:.92rem;}
+.compact-map .map-seals {font-size:.69rem;}
+@media(max-width:450px){.phone-nav button{font-size:.78rem;padding:12px 3px;}.dungeon-plan{padding:12px;}}
